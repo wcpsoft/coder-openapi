@@ -1,6 +1,17 @@
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::path::PathBuf;
+
+#[derive(Debug, Deserialize)]
+pub struct ServerConfig {
+    pub host: String,
+    pub port: u16,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LocalesConfig {
+    pub path: String,
+    pub default: String,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct ModelConfig {
@@ -19,6 +30,8 @@ pub struct ModelFiles {
 
 #[derive(Debug, Deserialize)]
 pub struct AppConfig {
+    pub server: ServerConfig,
+    pub locales: LocalesConfig,
     pub models: HashMap<String, ModelConfig>,
 }
 

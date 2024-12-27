@@ -16,6 +16,9 @@
 //! }
 //! ```
 
+pub mod deepseek_coder;
+pub mod yi_coder;
+
 use crate::entities::models::{DeepseekCoderModel, YiCoderModel};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

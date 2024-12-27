@@ -1,7 +1,6 @@
 use crate::entities::models::Model;
 use crate::error::Result;
 use candle_core::Device;
-
 #[derive(Clone)]
 pub struct YiCoderModel {
     #[allow(dead_code)]

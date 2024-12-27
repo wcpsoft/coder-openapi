@@ -5,7 +5,6 @@ use actix_web::{post, web, HttpResponse, ResponseError};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::fmt;
-
 pub trait ModelResponseGenerator {
     fn generate_response(
         self,
@@ -29,7 +28,6 @@ impl ModelResponseGenerator for DeepseekCoderModel {
 
 pub mod error {
     use super::*;
-
     #[derive(Debug)]
     pub enum ChatError {
         ModelNotAvailable,
@@ -56,7 +54,7 @@ pub mod error {
             match self {
                 ChatError::ModelNotAvailable => HttpResponse::BadRequest().json(json!({
                     "error": "Model not available",
-                    "message": "Please download the model first"
+                    "message": "Model not available"
                 })),
                 ChatError::ModelNotFound => HttpResponse::NotFound().json(json!({
                     "error": "Model not found"

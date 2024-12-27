@@ -1,6 +1,5 @@
 use crate::error::Result;
 use candle_core::Device;
-
 #[derive(Clone)]
 pub struct DeepseekCoderModel {
     #[allow(dead_code)]

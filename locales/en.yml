@@ -1,0 +1,26 @@
+routes:
+  chat: "Chat routes"
+  models: "Model routes"
+  download: "Download routes"
+
+errors:
+  model_not_available: "Model not available"
+  model_not_found: "Model not found"
+  model_not_loaded: "Model not loaded: {}"
+  output_processing_failed: "Output processing failed: {}"
+  authentication_failed: "Authentication failed"
+  invalid_api_key: "Invalid API key"
+
+models:
+  yi_coder: "Yi-Coder"
+  deepseek_coder: "Deepseek-Coder"
+  yi_coder_description: "Yi series code generation model"
+  deepseek_coder_description: "Deepseek series code generation model"
+
+responses:
+  yi_coder_response: "Yi Coder response to: {}"
+  deepseek_coder_response: "Deepseek Coder response to: {}"
+
+download:
+  request: "Received download request: {}"
+  success: "Successfully downloaded model: {}"

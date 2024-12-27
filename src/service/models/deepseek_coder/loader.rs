@@ -3,7 +3,6 @@ use candle_core::{Device, Tensor};
 use memmap2;
 use safetensors::SafeTensors;
 use std::path::PathBuf;
-
 pub struct ModelLoader {
     model_paths: Vec<PathBuf>,
     device: Device,
@@ -20,7 +19,7 @@ impl ModelLoader {
             .model_files
             .weights
             .iter()
-            .map(|file| ModelDownloader::download_file(&model_config.hf_hub_id, file))
+            .map(|file| ModelDownloader::download_model(&model_config.hf_hub_id, file))
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         Ok(Self {

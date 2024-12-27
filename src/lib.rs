@@ -9,6 +9,7 @@
 //! - `routes`: 定义API端点和路由
 //! - `service`: 实现业务逻辑和服务
 //! - `utils`: 包含实用函数和辅助工具
+//! - `locales`: 国际化支持
 //!
 //! # 示例
 //! ```rust
@@ -26,18 +27,23 @@
 //!     .await
 //! }
 //! ```
-
 pub mod controller;
 pub mod entities;
 pub mod error;
+pub mod locales;
 pub mod middleware;
 pub mod route;
 pub mod routes;
 pub mod service;
-pub mod utils;
+pub mod utils {
+    pub mod config;
+    pub mod download;
+    pub mod init;
+}
 
 pub use controller::{chat, models};
 pub use entities::*;
 pub use error::*;
+pub use locales::*;
 pub use routes::*;
 pub use utils::*;

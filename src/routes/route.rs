@@ -1,15 +1,27 @@
+use crate::Locales;
 use actix_web::web;
+use std::sync::Arc;
 
 pub fn chat_routes() -> actix_web::Scope {
-    web::scope("/chat").route("", web::get().to(|| async { "Chat routes" }))
+    web::scope("/chat").route(
+        "",
+        web::get().to(|locales: web::Data<Arc<Locales>>| async move { locales.t("routes.chat") }),
+    )
 }
 
 pub fn model_routes() -> actix_web::Scope {
-    web::scope("/models").route("", web::get().to(|| async { "Model routes" }))
+    web::scope("/models").route(
+        "",
+        web::get().to(|locales: web::Data<Arc<Locales>>| async move { locales.t("routes.models") }),
+    )
 }
 
 pub fn download_routes() -> actix_web::Scope {
-    web::scope("/download").route("", web::get().to(|| async { "Download routes" }))
+    web::scope("/download").route(
+        "",
+        web::get()
+            .to(|locales: web::Data<Arc<Locales>>| async move { locales.t("routes.download") }),
+    )
 }
 
 pub fn configure(cfg: &mut web::ServiceConfig) {

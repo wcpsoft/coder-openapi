@@ -20,7 +20,7 @@ impl ModelLoader {
             .model_files
             .weights
             .iter()
-            .map(|file| ModelDownloader::download_file(&model_config.hf_hub_id, file))
+            .map(|file| ModelDownloader::download_model(&model_config.hf_hub_id, file))
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         Ok(Self {
