@@ -1,0 +1,23 @@
+models:
+  yi-coder:
+    hf_hub_id: "Yi-Coder-1.5B-Chat" # Hugging Face Hub模型ID
+    model_files:
+      weights: 
+        - "model.safetensors"
+      config: "config.json"
+      tokenizer: "tokenizer.model"
+      tokenizer_config: "tokenizer_config.json"
+      generation_config: "generation_config.json"
+  
+  deepseek-coder:
+    hf_hub_id: "DeepSeek-Coder-V2-Lite-Instruct" # Hugging Face Hub模型ID
+    model_files:
+      weights: 
+        - "model-00001-of-000004.safetensors"
+        - "model-00002-of-000004.safetensors"
+        - "model-00003-of-000004.safetensors"
+        - "model-00004-of-000004.safetensors"
+      config: "config.json"
+      tokenizer: "tokenizer.json"
+      tokenizer_config: "tokenizer_config.json"
+      generation_config: "generation_config.json"

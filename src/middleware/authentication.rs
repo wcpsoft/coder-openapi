@@ -4,12 +4,12 @@ use futures::future::{ok, Ready};
 use std::future::Future;
 use std::pin::Pin;
 
-/// Authentication middleware
+/// 身份验证中间件
 ///
-/// # Examples
+/// # 示例
 /// ```
 /// use actix_web::App;
-/// use yi_coder_openapi::middleware::Authentication;
+/// use coder_openapi::middleware::Authentication;
 ///
 /// App::new()
 ///     .wrap(Authentication);

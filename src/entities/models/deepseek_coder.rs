@@ -9,10 +9,15 @@ pub struct DeepseekCoderModel {
 }
 
 impl DeepseekCoderModel {
-    pub fn new() -> Result<Self> {
-        Ok(DeepseekCoderModel {
-            device: Device::Cpu,
-        })
+    pub fn new(config_path: &str) -> Result<Self> {
+        let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
+        let loader = crate::service::models::deepseek_coder::loader::ModelLoader::new(
+            "deepseek-coder",
+            config_path,
+        )?;
+        let _tensors = loader.load()?;
+
+        Ok(DeepseekCoderModel { device })
     }
 
     #[allow(dead_code)]

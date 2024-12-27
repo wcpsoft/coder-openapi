@@ -5,12 +5,12 @@ use log;
 use std::future::Future;
 use std::pin::Pin;
 
-/// Logging middleware for request timing and logging
+/// 用于请求计时和日志记录的中间件
 ///
-/// # Examples
+/// # 示例
 /// ```
 /// use actix_web::App;
-/// use yi_coder_openapi::middleware::Logging;
+/// use coder_openapi::middleware::Logging;
 ///
 /// App::new()
 ///     .wrap(Logging);

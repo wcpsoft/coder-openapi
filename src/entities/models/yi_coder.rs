@@ -10,10 +10,13 @@ pub struct YiCoderModel {
 }
 
 impl YiCoderModel {
-    pub fn new() -> Result<Self> {
-        Ok(YiCoderModel {
-            device: Device::Cpu,
-        })
+    pub fn new(config_path: &str) -> Result<Self> {
+        let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
+        let loader =
+            crate::service::models::yi_coder::loader::ModelLoader::new("yi-coder", config_path)?;
+        let _tensors = loader.load()?;
+
+        Ok(YiCoderModel { device })
     }
 
     #[allow(dead_code)]

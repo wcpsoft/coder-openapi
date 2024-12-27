@@ -1,18 +1,18 @@
-//! Yi-Coder OpenAPI
+//! Coder OpenAPI
 //!
-//! This crate provides an OpenAI-compatible API service for Yi-Coder models.
+//! 本crate提供了一个与OpenAI兼容的AI模型API服务。
 //!
-//! # Modules
-//! - `controller`: Handles HTTP requests and routes
-//! - `entities`: Defines core data structures and models
-//! - `error`: Provides error handling and custom error types
-//! - `routes`: Defines API endpoints and routing
-//! - `service`: Implements business logic and services
-//! - `utils`: Contains utility functions and helpers
+//! # 模块
+//! - `controller`: 处理HTTP请求和路由
+//! - `entities`: 定义核心数据结构和模型
+//! - `error`: 提供错误处理和自定义错误类型
+//! - `routes`: 定义API端点和路由
+//! - `service`: 实现业务逻辑和服务
+//! - `utils`: 包含实用函数和辅助工具
 //!
-//! # Examples
+//! # 示例
 //! ```rust
-//! use yi_coder_openapi::controller::chat::chat_completions;
+//! use coder_openapi::controller::chat::chat_completions;
 //! use actix_web::{web, App, HttpServer};
 //!
 //! #[actix_web::main]
@@ -25,7 +25,7 @@
 //!     .run()
 //!     .await
 //! }
-//! */
+//! ```
 
 pub mod controller;
 pub mod entities;
