@@ -55,9 +55,9 @@
      - [ ] 生成HTML报告
 
 3. **CI/CD 管道**
-   - [ ] 配置GitHub Actions/GitLab CI
-     - [ ] 创建CI配置文件
-     - [ ] 设置构建任务
+   - [✓] 配置GitHub Actions/GitLab CI
+     - [✓] 创建CI配置文件
+     - [✓] 设置构建任务
    - [ ] 设置自动化测试管道
      - [ ] 单元测试任务
      - [ ] 集成测试任务

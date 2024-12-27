@@ -37,6 +37,8 @@ actix-test = "0.1.0"
 mockall = "0.13"
 testcontainers = "0.23"
 flamegraph = "0.6"
+rustfmt = "0.10"
+clippy = "0.0.302"
 
 [[bench]]
 name = "benchmarks"
