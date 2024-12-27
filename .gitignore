@@ -1,0 +1,41 @@
+.clinerules
+/prd_doc/
+/logs/
+/task-step/
+/target/
+
+# Ignore Cargo.lock for libraries
+Cargo.lock
+
+# Ignore IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ignore build artifacts
+**/*.rs.bk
+
+# Ignore local environment files
+.env
+.env.local
+
+# Ignore macOS system files
+.DS_Store
+
+# Ignore test coverage files
+coverage/
+.DS_Store
+/target
+*.lock
+/task-step
+# Logs
+*.log
+
+# Static and templates files
+/static/*
+/templates/*
+
+# Temporary files
+*.tmp
+/prompt_logs/*
