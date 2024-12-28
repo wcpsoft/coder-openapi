@@ -400,6 +400,23 @@
      - [ ] 添加请求处理时间统计
 
 ## 代码实现状态
+### 模型实现情况
+#### Deepseek Coder
+- 配置文件: src/service/models/deepseek_coder/config.rs [✓]
+- 模型加载: src/service/models/deepseek_coder/loader.rs [✓]
+- 推理实现: src/service/models/deepseek_coder/inference.rs [✓]
+- Transformer: src/service/models/deepseek_coder/transformer.rs [✓]
+  - 已完成设备自动选择 (CPU/GPU)
+  - TODO: 实现完整的transformer逻辑
+
+#### Yi Coder  
+- 配置文件: src/service/models/yi_coder/config.rs [✓]
+- 模型加载: src/service/models/yi_coder/loader.rs [✓]
+- 推理实现: src/service/models/yi_coder/inference.rs [✓]
+- Transformer: src/service/models/yi_coder/transformer.rs [✓]
+  - 已完成设备自动选择 (CPU/GPU)
+  - TODO: 实现完整的transformer逻辑
+
 ### 完全实现的函数 [✓]
 - src/controller/chat/chat.rs
   - chat_completions

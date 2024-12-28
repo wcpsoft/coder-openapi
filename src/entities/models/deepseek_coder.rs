@@ -1,5 +1,6 @@
 use crate::error::Result;
 use candle_core::Device;
+
 #[derive(Clone)]
 pub struct DeepseekCoderModel {
     #[allow(dead_code)]
@@ -8,13 +9,15 @@ pub struct DeepseekCoderModel {
 }
 
 impl DeepseekCoderModel {
-    pub fn new(config_path: &str) -> Result<Self> {
+    pub async fn new() -> Result<Self> {
         let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
-        let loader = crate::service::models::deepseek_coder::loader::ModelLoader::new(
-            "deepseek-coder",
-            config_path,
+        let config = crate::service::models::deepseek_coder::config::ModelConfig::from_file(
+            "config/deepseek_coder.json",
         )?;
-        let _tensors = loader.load()?;
+        let loader = crate::service::models::deepseek_coder::loader::DeepseekCoderLoader::new(
+            config.clone(),
+        );
+        let _tensors = loader.load_weights().await?;
 
         Ok(DeepseekCoderModel { device })
     }

@@ -39,3 +39,6 @@ coverage/
 # Temporary files
 *.tmp
 /prompt_logs/*
+
+# Model cache directory
+/models_cache/

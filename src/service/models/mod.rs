@@ -62,11 +62,68 @@ impl Default for ModelManager {
 impl ModelManager {
     /// 创建一个新的ModelManager实例
     pub fn new() -> Self {
-        Self {
+        let manager = Self {
             yi_coder: Arc::new(RwLock::new(None)),
             deepseek_coder: Arc::new(RwLock::new(None)),
             model_status: Arc::new(RwLock::new(HashMap::new())),
-        }
+        };
+        // Initialize status from disk
+        let _ = manager.refresh_status_from_disk();
+        manager
+    }
+
+    /// Refresh model status from disk
+    async fn refresh_status_from_disk(&self) -> Result<(), ModelError> {
+        let mut status = self.model_status.write().await;
+
+        // Check yi-coder files
+        let yi_coder_dir = format!("models_cache/01-ai/Yi-Coder-1.5B-Chat");
+        let yi_coder_files = [
+            "model.safetensors",
+            "config.json",
+            "tokenizer.model",
+            "tokenizer_config.json",
+            "generation_config.json",
+        ];
+        let yi_coder_any_exists = yi_coder_files
+            .iter()
+            .any(|file| std::path::Path::new(&format!("{}/{}", yi_coder_dir, file)).exists());
+        let yi_coder_all_exists = yi_coder_files
+            .iter()
+            .all(|file| std::path::Path::new(&format!("{}/{}", yi_coder_dir, file)).exists());
+        status.insert(
+            "yi-coder".to_string(),
+            ModelStatus { is_cached: yi_coder_any_exists, is_enabled: yi_coder_all_exists },
+        );
+
+        // Check deepseek-coder files
+        let deepseek_coder_dir =
+            format!("models_cache/deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct");
+        let deepseek_coder_files = [
+            "model-00001-of-000004.safetensors",
+            "model-00002-of-000004.safetensors",
+            "model-00003-of-000004.safetensors",
+            "model-00004-of-000004.safetensors",
+            "config.json",
+            "tokenizer.json",
+            "tokenizer_config.json",
+            "generation_config.json",
+        ];
+        let deepseek_coder_any_exists = deepseek_coder_files
+            .iter()
+            .any(|file| std::path::Path::new(&format!("{}/{}", deepseek_coder_dir, file)).exists());
+        let deepseek_coder_all_exists = deepseek_coder_files
+            .iter()
+            .all(|file| std::path::Path::new(&format!("{}/{}", deepseek_coder_dir, file)).exists());
+        status.insert(
+            "deepseek-coder".to_string(),
+            ModelStatus {
+                is_cached: deepseek_coder_any_exists,
+                is_enabled: deepseek_coder_all_exists,
+            },
+        );
+
+        Ok(())
     }
 
     /// 下载并初始化模型
@@ -99,7 +156,7 @@ impl ModelManager {
             match model_id {
                 "yi-coder" => {
                     let mut model = self.yi_coder.write().await;
-                    *model = Some(YiCoderModel::new(config_path).map_err(|e| {
+                    *model = Some(YiCoderModel::new(config_path).await.map_err(|e| {
                         ModelError::InitializationFailed(format!("Yi-Coder: {}", e))
                     })?);
                     model_status.is_cached = true;
@@ -107,7 +164,7 @@ impl ModelManager {
                 }
                 "deepseek-coder" => {
                     let mut model = self.deepseek_coder.write().await;
-                    *model = Some(DeepseekCoderModel::new(config_path).map_err(|e| {
+                    *model = Some(DeepseekCoderModel::new().await.map_err(|e| {
                         ModelError::InitializationFailed(format!("Deepseek-Coder: {}", e))
                     })?);
                     model_status.is_cached = true;
@@ -177,6 +234,8 @@ impl ModelManager {
     /// # 返回值
     /// * `HashMap<String, ModelStatus>` - 包含所有模型状态的映射
     pub async fn get_all_model_status(&self) -> HashMap<String, ModelStatus> {
+        // Refresh status from disk before returning
+        let _ = self.refresh_status_from_disk().await;
         let status = self.model_status.read().await;
         status.clone()
     }

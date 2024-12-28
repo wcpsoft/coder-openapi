@@ -1,9 +1,10 @@
 use crate::error::AppError;
+use crate::service::models::yi_coder::loader::ModelLoader;
 use crate::service::models::{ModelManager, ModelStatus};
 pub use crate::Locales;
 use actix_web::{get, post, web, HttpResponse};
 use anyhow::Result;
-use log::info;
+use log::{debug, info};
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -13,6 +14,7 @@ pub async fn list_models(
     manager: web::Data<ModelManager>,
     locales: web::Data<Arc<Locales>>,
 ) -> HttpResponse {
+    debug!("Received list models request");
     let status = manager.get_all_model_status().await;
     let models = vec![
         ("yi-coder", locales.t("models.yi_coder"), locales.t("models.yi_coder_description")),
@@ -43,15 +45,19 @@ pub async fn list_models(
     HttpResponse::Ok().json(json!({ "models": response }))
 }
 
-#[post("")]
+#[post("/download")]
 pub async fn download_model(
-    manager: web::Data<ModelManager>,
+    _manager: web::Data<ModelManager>,
     _locales: web::Data<Arc<Locales>>,
     req: web::Json<DownloadRequest>,
 ) -> Result<HttpResponse, AppError> {
-    info!("Received download request: {}", req.model_id);
+    debug!("Received download request: {}", req.model_id);
     let model_id = &req.model_id;
-    manager.download_model(model_id, "config/app.yml").await?;
+    let config_path = "config/app.yml";
+
+    // Initialize model loader which will download all required files
+    let _loader = ModelLoader::new(model_id, config_path).await?;
+
     info!("Successfully downloaded model: {}", model_id);
     Ok(HttpResponse::Ok().json(json!({
         "status": "success",
@@ -65,5 +71,5 @@ struct DownloadRequest {
 }
 
 pub fn routes() -> actix_web::Scope {
-    web::scope("/models").service(list_models).service(download_model)
+    web::scope("").service(list_models).service(download_model)
 }

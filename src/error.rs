@@ -23,6 +23,32 @@ pub enum AppError {
     Chat(String),
     #[error("SafeTensor error: {0}")]
     SafeTensor(#[from] SafeTensorError),
+    #[error("Invalid model: {0}")]
+    InvalidModel(String),
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
+    #[error("Tokenizer error: {0}")]
+    TokenizerError(String),
+    #[error("Generic error: {0}")]
+    Generic(String),
+}
+
+impl AppError {
+    pub fn new(message: String) -> Self {
+        AppError::Generic(message)
+    }
+}
+
+impl From<Box<dyn std::error::Error + Send + Sync>> for AppError {
+    fn from(err: Box<dyn std::error::Error + Send + Sync>) -> Self {
+        AppError::Generic(err.to_string())
+    }
+}
+
+impl From<serde_json::Error> for AppError {
+    fn from(err: serde_json::Error) -> Self {
+        AppError::ConfigError(err.to_string())
+    }
 }
 
 impl ResponseError for AppError {}

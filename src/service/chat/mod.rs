@@ -1,17 +1,9 @@
-#[derive(Debug, Clone)]
-pub struct ChatService {
-    // 为未来聊天服务实现预留
-}
+pub mod chat_completion;
 
-impl Default for ChatService {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+pub struct ChatService;
 
 impl ChatService {
-    /// 创建一个新的ChatService实例
     pub fn new() -> Self {
-        ChatService {}
+        Self
     }
 }

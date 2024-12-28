@@ -1,30 +1,29 @@
-use crate::entities::models::model::Model;
-use crate::error::Result;
+use crate::entities::chat_completion_message::ChatCompletionMessage;
+use crate::error::AppError;
 use candle_core::Device;
 
-pub struct YiCoderModel {
-    #[allow(dead_code)]
-    device: Device, // Will be used for tensor operations
-                    // Add other necessary model parameters here
+pub struct YiCoderInference {
+    _device: Device,
 }
 
-impl YiCoderModel {
-    pub fn new() -> Result<Self> {
-        Ok(YiCoderModel {
-            device: Device::Cpu,
-        })
+impl YiCoderInference {
+    pub fn new(_config: &super::config::ModelConfig) -> Self {
+        Self { _device: Device::Cpu }
     }
 
-    pub fn load(&self) -> Result<()> {
-        // Implement actual model loading logic here
-        Ok(())
-    }
-}
-
-impl Model for YiCoderModel {
-    fn generate_response(&self, input: &str) -> Result<String> {
-        // TODO: Implement actual response generation logic
-        // For now, return a dummy response
-        Ok(format!("Yi Coder response to: {}", input))
+    pub async fn infer(
+        &self,
+        _messages: Vec<ChatCompletionMessage>,
+        _temperature: Option<f32>,
+        _top_p: Option<f32>,
+        _n: Option<usize>,
+        _max_tokens: Option<usize>,
+        _stream: Option<bool>,
+    ) -> Result<Vec<ChatCompletionMessage>, AppError> {
+        // TODO: Implement actual inference logic
+        Ok(vec![ChatCompletionMessage {
+            role: "assistant".to_string(),
+            content: "Yi Coder response".to_string(),
+        }])
     }
 }

@@ -10,10 +10,7 @@ pub fn chat_routes() -> actix_web::Scope {
 }
 
 pub fn model_routes() -> actix_web::Scope {
-    web::scope("/models").route(
-        "",
-        web::get().to(|locales: web::Data<Arc<Locales>>| async move { locales.t("routes.models") }),
-    )
+    crate::controller::models::models::routes()
 }
 
 pub fn download_routes() -> actix_web::Scope {

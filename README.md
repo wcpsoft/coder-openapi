@@ -40,15 +40,111 @@
 
 ## 使用说明
 
-### API接口
+## API 文档
 
-- `GET /models` - 获取可用模型列表
-- `POST /models/{model_id}/download` - 下载指定模型
-- `POST /chat/completions` - 生成代码补全
+### 模型管理
 
-示例请求：
+#### 获取模型列表
+`GET /v1/models`
+
+**响应示例：**
+```json
+{
+  "models": [
+    {
+      "id": "yi-coder",
+      "name": "Yi Coder",
+      "description": "Yi 1.5B 代码模型",
+      "is_cached": true,
+      "is_enabled": true
+    },
+    {
+      "id": "deepseek-coder",
+      "name": "Deepseek Coder",
+      "description": "Deepseek 代码模型",
+      "is_cached": false,
+      "is_enabled": false
+    }
+  ]
+}
+```
+
+#### 下载模型
+`POST /v1/download`
+
+**请求参数：**
+```json
+{
+  "model_id": "yi-coder"
+}
+```
+
+**响应示例：**
+```json
+{
+  "status": "success",
+  "model_id": "yi-coder"
+}
+```
+
+### 代码补全
+
+#### 生成代码补全
+`POST /v1/chat/completions`
+
+**请求参数：**
+```json
+{
+  "model": "yi-coder",
+  "messages": [
+    {
+      "role": "user",
+      "content": "编写一个计算阶乘的Python函数"
+    }
+  ]
+}
+```
+
+**响应示例：**
+```json
+{
+  "model": "yi-coder",
+  "response": "def factorial(n):\n    if n == 0:\n        return 1\n    else:\n        return n * factorial(n-1)"
+}
+```
+
+### 错误响应
+
+所有错误响应遵循以下格式：
+```json
+{
+  "error": "错误类型",
+  "message": "错误描述"
+}
+```
+
+常见错误：
+- 400 Bad Request: 请求参数无效
+- 404 Not Found: 请求的资源不存在
+- 500 Internal Server Error: 服务器内部错误
+
+### 示例请求
+
+获取模型列表：
 ```bash
-curl -X POST http://localhost:8080/chat/completions \
+curl -X GET http://localhost:8080/v1/models
+```
+
+下载模型：
+```bash
+curl -X POST http://localhost:8080/v1/download \
+  -H "Content-Type: application/json" \
+  -d '{"model_id": "yi-coder"}'
+```
+
+生成代码补全：
+```bash
+curl -X POST http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "yi-coder",

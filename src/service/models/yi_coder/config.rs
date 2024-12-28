@@ -3,11 +3,28 @@ use std::path::Path;
 
 #[derive(Debug, Deserialize)]
 pub struct ModelConfig {
-    pub num_layers: usize,
-    pub num_attention_heads: usize,
+    #[serde(default)]
+    pub bos_token_id: usize,
+    #[serde(default)]
+    pub eos_token_id: usize,
+    #[serde(default)]
+    pub pad_token_id: usize,
+    #[serde(default)]
+    pub temperature: f32,
+    #[serde(default)]
+    pub top_p: f32,
+    #[serde(default)]
+    pub max_tokens: usize,
+    #[serde(default)]
     pub hidden_size: usize,
-    pub vocab_size: usize,
-    pub max_position_embeddings: usize,
+    #[serde(default)]
+    pub num_attention_heads: usize,
+    #[serde(default)]
+    pub intermediate_size: usize,
+    #[serde(default)]
+    pub num_layers: usize,
+    #[serde(default)]
+    pub layer_norm_eps: f64,
 }
 
 impl ModelConfig {

@@ -27,6 +27,8 @@
 //!     .await
 //! }
 //! ```
+
+extern crate log;
 pub mod controller;
 pub mod entities;
 pub mod error;

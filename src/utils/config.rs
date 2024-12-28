@@ -1,5 +1,20 @@
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::sync::OnceLock;
+
+#[derive(Debug, Deserialize)]
+pub struct Chat {
+    pub defaults: ChatDefaults,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ChatDefaults {
+    pub temperature: f32,
+    pub top_p: f32,
+    pub n: usize,
+    pub max_tokens: usize,
+    pub stream: bool,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct ServerConfig {
@@ -33,6 +48,16 @@ pub struct AppConfig {
     pub server: ServerConfig,
     pub locales: LocalesConfig,
     pub models: HashMap<String, ModelConfig>,
+    pub models_cache_dir: String,
+    pub chat: Chat,
+}
+
+static CONFIG: OnceLock<AppConfig> = OnceLock::new();
+
+pub fn get_config() -> &'static AppConfig {
+    CONFIG.get_or_init(|| {
+        AppConfig::load("config/app.yml").expect("Failed to load application configuration")
+    })
 }
 
 impl AppConfig {

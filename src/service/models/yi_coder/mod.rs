@@ -3,4 +3,5 @@ pub mod inference;
 pub mod loader;
 pub mod transformer;
 
-pub use self::inference::YiCoderModel;
+mod yi_coder;
+pub use yi_coder::YiCoder;

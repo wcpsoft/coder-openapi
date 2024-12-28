@@ -9,10 +9,11 @@ pub struct YiCoderModel {
 }
 
 impl YiCoderModel {
-    pub fn new(config_path: &str) -> Result<Self> {
+    pub async fn new(config_path: &str) -> Result<Self> {
         let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
         let loader =
-            crate::service::models::yi_coder::loader::ModelLoader::new("yi-coder", config_path)?;
+            crate::service::models::yi_coder::loader::ModelLoader::new("yi-coder", config_path)
+                .await?;
         let _tensors = loader.load()?;
 
         Ok(YiCoderModel { device })
