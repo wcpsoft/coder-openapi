@@ -41,6 +41,20 @@ pub struct Usage {
 }
 
 pub async fn chat_completion(req: web::Json<ChatCompletionRequest>) -> HttpResponse {
+    log::info!("Received chat completion request");
+
+    // Validate required fields
+    if req.model.is_empty() {
+        log::warn!("Empty model field in request");
+        return HttpResponse::BadRequest().json("model field is required");
+    }
+    if req.messages.is_empty() {
+        log::warn!("Empty messages field in request");
+        return HttpResponse::BadRequest().json("messages field cannot be empty");
+    }
+
+    log::debug!("Request validation passed");
+
     let service = ChatCompletionService::new();
     let config = get_config();
     let chat_config = &config.chat;

@@ -1,3 +1,4 @@
+use crate::locales::{LocaleError, Locales};
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     error::ResponseError,
@@ -8,14 +9,6 @@ use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, future::Future, pin::Pin};
 use thiserror::Error;
 
-// Centralized error handling middleware for the application
-//
-// This module provides:
-// - Custom error types using `thiserror`
-// - Error response formatting
-// - Middleware for handling errors in Actix-web services
-
-// Application error types
 #[derive(Debug, Error, Serialize, Deserialize)]
 pub enum AppError {
     #[error("IO error: {0}")]
@@ -38,14 +31,18 @@ pub enum AppError {
     TokenizerError(String),
     #[error("Validation error: {0}")]
     ValidationError(ValidationDetails),
-    #[error("Not Found")]
+    #[error("Not found")]
     NotFound,
     #[error("Unauthorized")]
     Unauthorized,
     #[error("Forbidden")]
     Forbidden,
+    #[error("Service unavailable")]
+    ServiceUnavailable,
     #[error("Generic error: {0}")]
     Generic(String),
+    #[error("Locale error: {0}")]
+    Locale(#[from] LocaleError),
 }
 
 impl From<actix_web::Error> for AppError {
@@ -74,7 +71,6 @@ impl ResponseError for AppError {
     }
 }
 
-// Validation error details
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ValidationDetails {
     field: String,
@@ -87,8 +83,8 @@ impl std::fmt::Display for ValidationDetails {
     }
 }
 
-// Standardized error response format
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, derive_more::Display)]
+#[display("code: {}, status: {}, message: {}", code, status, message)]
 pub struct ErrorResponse {
     code: u32,
     status: String,
@@ -97,23 +93,37 @@ pub struct ErrorResponse {
 }
 
 impl ErrorResponse {
-    // Creates an ErrorResponse from an AppError
     pub fn from_error(error: &AppError) -> Self {
+        let locales = match Locales::new("locales") {
+            Ok(locales) => locales,
+            Err(err) => {
+                log::error!("Failed to load locales: {}", err);
+                return Self {
+                    code: 500,
+                    status: "Internal Server Error".to_string(),
+                    message: "Failed to load locales".to_string(),
+                    data: None,
+                };
+            }
+        };
+
         let (code, status) = match error {
-            AppError::Io(_) => (500, "Internal Server Error"),
-            AppError::Anyhow(_) => (500, "Internal Server Error"),
-            AppError::Model(_) => (400, "Bad Request"),
-            AppError::Candle(_) => (500, "Internal Server Error"),
-            AppError::Chat(_) => (400, "Bad Request"),
-            AppError::SafeTensor(_) => (500, "Internal Server Error"),
-            AppError::InvalidModel(_) => (400, "Bad Request"),
-            AppError::ConfigError(_) => (500, "Internal Server Error"),
-            AppError::TokenizerError(_) => (500, "Internal Server Error"),
-            AppError::ValidationError(_) => (400, "Bad Request"),
-            AppError::NotFound => (404, "Not Found"),
-            AppError::Unauthorized => (401, "Unauthorized"),
-            AppError::Forbidden => (403, "Forbidden"),
-            AppError::Generic(_) => (500, "Internal Server Error"),
+            AppError::Io(_) => (500, locales.t("errors.internal_server_error")),
+            AppError::Anyhow(_) => (500, locales.t("errors.internal_server_error")),
+            AppError::Model(_) => (400, locales.t("errors.bad_request")),
+            AppError::Candle(_) => (500, locales.t("errors.internal_server_error")),
+            AppError::Chat(_) => (400, locales.t("errors.bad_request")),
+            AppError::SafeTensor(_) => (500, locales.t("errors.internal_server_error")),
+            AppError::InvalidModel(_) => (400, locales.t("errors.bad_request")),
+            AppError::ConfigError(_) => (500, locales.t("errors.internal_server_error")),
+            AppError::TokenizerError(_) => (500, locales.t("errors.internal_server_error")),
+            AppError::ValidationError(_) => (400, locales.t("errors.bad_request")),
+            AppError::NotFound => (404, locales.t("errors.not_found")),
+            AppError::Unauthorized => (401, locales.t("errors.unauthorized")),
+            AppError::Forbidden => (403, locales.t("errors.forbidden")),
+            AppError::ServiceUnavailable => (503, locales.t("errors.service_unavailable")),
+            AppError::Generic(_) => (500, locales.t("errors.internal_server_error")),
+            AppError::Locale(_) => (500, "Locale error".to_string()),
         };
 
         let mut response = ErrorResponse {
@@ -124,14 +134,20 @@ impl ErrorResponse {
         };
 
         if let AppError::ValidationError(details) = error {
-            response.data = Some(serde_json::to_value(details).unwrap_or_default());
+            response.data = match serde_json::to_value(details) {
+                Ok(value) => Some(value),
+                Err(err) => {
+                    let msg = format!("Serialization failed: {}", err.to_string());
+                    log::error!("{}", msg);
+                    None
+                }
+            };
         }
 
         response
     }
 }
 
-// Error handling middleware implementation
 pub struct ErrorHandlerMiddleware;
 
 impl<S, B> Transform<S, ServiceRequest> for ErrorHandlerMiddleware
@@ -152,7 +168,6 @@ where
     }
 }
 
-// Inner service implementation for error handling
 pub struct ErrorHandlerService<S> {
     service: S,
 }
@@ -177,24 +192,85 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let req_parts = req.parts().0.clone();
+        match self
+            .service
+            .poll_ready(&mut core::task::Context::from_waker(futures::task::noop_waker_ref()))
+        {
+            core::task::Poll::Ready(Ok(())) => {
+                log::debug!("Service ready to handle request");
+            }
+            core::task::Poll::Ready(Err(_err)) => {
+                let msg = format!(
+                    "Service unavailable: {} {} {}",
+                    _err.to_string(),
+                    req_parts.uri().to_string(),
+                    req_parts.method().to_string()
+                );
+                log::error!("{}", msg);
+                let response = ErrorResponse::from_error(&AppError::ServiceUnavailable);
+                let http_response =
+                    HttpResponse::build(StatusCode::SERVICE_UNAVAILABLE).json(response);
+                return Box::pin(async move {
+                    Ok(ServiceResponse::new(req_parts, http_response.map_into_boxed_body()))
+                });
+            }
+            core::task::Poll::Pending => {
+                let msg = format!(
+                    "Service not ready: {} {}",
+                    req_parts.uri().to_string(),
+                    req_parts.method().to_string()
+                );
+                log::warn!("{}", msg);
+                let response = ErrorResponse::from_error(&AppError::ServiceUnavailable);
+                let http_response =
+                    HttpResponse::build(StatusCode::SERVICE_UNAVAILABLE).json(response);
+                return Box::pin(async move {
+                    Ok(ServiceResponse::new(req_parts, http_response.map_into_boxed_body()))
+                });
+            }
+        }
+
         let fut = self.service.call(req);
 
         Box::pin(async move {
-            match fut.await {
+            let result = fut.await;
+
+            match result {
                 Ok(res) => Ok(res.map_into_boxed_body()),
                 Err(err) => {
-                    let app_error: AppError = err.into();
+                    let app_error: AppError = match err.try_into() {
+                        Ok(err) => err,
+                        Err(conv_err) => {
+                            let msg = format!(
+                                "Error conversion failed: {} {} {}",
+                                conv_err.to_string(),
+                                req_parts.uri().to_string(),
+                                req_parts.method().to_string()
+                            );
+                            log::error!("{}", msg);
+                            AppError::Generic("Internal server error".to_string())
+                        }
+                    };
+
                     let response = ErrorResponse::from_error(&app_error);
 
-                    log::error!(
-                        "Error occurred - URI: {}, Method: {}, Error: {:?}",
-                        req_parts.uri(),
-                        req_parts.method(),
-                        app_error
+                    let msg = format!(
+                        "Error occurred: {} {} {} {}",
+                        req_parts.uri().to_string(),
+                        req_parts.method().to_string(),
+                        app_error.to_string(),
+                        response.to_string()
                     );
+                    log::error!("{}", msg);
 
-                    let status_code = StatusCode::from_u16(response.code as u16)
-                        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+                    let status_code = match StatusCode::from_u16(response.code as u16) {
+                        Ok(code) => code,
+                        Err(_) => {
+                            let msg = format!("Invalid status code: {}", response.code.to_string());
+                            log::error!("{}", msg);
+                            StatusCode::INTERNAL_SERVER_ERROR
+                        }
+                    };
 
                     let http_response = HttpResponse::build(status_code).json(response);
                     Ok(ServiceResponse::new(req_parts, http_response.map_into_boxed_body()))
@@ -204,7 +280,6 @@ where
     }
 }
 
-// Creates a new error handler middleware instance
 pub fn error_handler() -> ErrorHandlerMiddleware {
     ErrorHandlerMiddleware
 }

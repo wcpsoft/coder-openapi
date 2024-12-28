@@ -10,6 +10,18 @@ errors:
   output_processing_failed: "输出处理失败: {}"
   authentication_failed: "认证失败"
   invalid_api_key: "无效的API密钥"
+  bad_request: "错误请求"
+  internal_server_error: "内部服务器错误"
+  not_found: "未找到"
+  unauthorized: "未授权"
+  forbidden: "禁止访问"
+  service_unavailable: "服务不可用"
+  serialization_failed: "序列化失败: {}"
+  service_unavailable_detail: "服务不可用: {}, URI: {}, 方法: {}"
+  service_not_ready: "服务未就绪, URI: {}, 方法: {}"
+  conversion_failed: "错误转换失败: {}, URI: {}, 方法: {}"
+  error_occurred: "发生错误 - URI: {}, 方法: {}, 错误: {}, 响应: {}"
+  invalid_status_code: "无效状态码 {} - 回退到500"
 
 models:
   yi_coder: "Yi-Coder"

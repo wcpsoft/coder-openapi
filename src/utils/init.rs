@@ -1,44 +1,23 @@
 use crate::utils::config::AppConfig;
-use actix_web::{App, HttpServer};
 use log::info;
 use log4rs;
 use std::sync::Arc;
 
 pub async fn init() -> crate::error::Result<Arc<AppConfig>> {
-    // Initialize logging
+    // 初始化日志系统
     log4rs::init_file("config/log4rs.yml", Default::default())?;
 
-    // Load application configuration
+    // 加载应用配置
     let config = AppConfig::load("config/app.yml")?;
-    info!("Application configuration loaded");
+    info!("应用配置加载完成");
 
-    // Initialize server
-    let server_addr = format!("{}:{}", config.server.host, config.server.port);
-    info!("Server will listen on: {}", server_addr);
+    // 初始化本地化系统
+    info!("使用本地化文件路径: {}, 默认语言: {}", config.locales.path, config.locales.default);
 
-    // Initialize localization
-    info!(
-        "Using localization from: {}, default language: {}",
-        config.locales.path, config.locales.default
-    );
-
-    // Initialize models
+    // 初始化模型配置
     for (model_id, _) in &config.models {
-        info!("Initialized model configuration for: {}", model_id);
+        info!("已初始化模型配置: {}", model_id);
     }
 
     Ok(Arc::new(config))
-}
-
-pub async fn run(host: &str, port: u16) -> crate::error::Result<()> {
-    info!("Starting server at {}:{}", host, port);
-
-    HttpServer::new(move || {
-        App::new().wrap(crate::middleware::logging::Logging).configure(crate::routes::configure)
-    })
-    .bind((host, port))?
-    .run()
-    .await?;
-
-    Ok(())
 }

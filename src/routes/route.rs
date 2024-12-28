@@ -4,14 +4,15 @@ use std::sync::Arc;
 
 pub fn chat_routes() -> actix_web::Scope {
     web::scope("/chat")
-        .route(
-            "",
-            web::get()
-                .to(|locales: web::Data<Arc<Locales>>| async move { locales.t("routes.chat") }),
+        .service(
+            web::resource("")
+                .route(web::get().to(|locales: web::Data<Arc<Locales>>| async move {
+                    locales.t("routes.chat")
+                })),
         )
-        .route(
-            "/completions",
-            web::post().to(crate::controller::chat::chat_completion::chat_completion),
+        .service(
+            web::resource("/completions")
+                .route(web::post().to(crate::controller::chat::chat_completion::chat_completion)),
         )
 }
 

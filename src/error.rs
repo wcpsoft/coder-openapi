@@ -37,6 +37,8 @@ pub enum AppError {
     ConfigError(String),
     #[error("Tokenizer error: {0}")]
     TokenizerError(String),
+    #[error("Invalid parameter: {0}")]
+    InvalidParameter(String),
     #[error("Generic error: {0}")]
     Generic(String),
 }
@@ -87,6 +89,7 @@ impl ResponseError for AppError {
             AppError::ConfigError(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
             AppError::TokenizerError(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
             AppError::ValidationError(_) => actix_web::http::StatusCode::BAD_REQUEST,
+            AppError::InvalidParameter(_) => actix_web::http::StatusCode::BAD_REQUEST,
             AppError::NotFound => actix_web::http::StatusCode::NOT_FOUND,
             AppError::Unauthorized => actix_web::http::StatusCode::UNAUTHORIZED,
             AppError::Forbidden => actix_web::http::StatusCode::FORBIDDEN,
@@ -106,6 +109,7 @@ impl ResponseError for AppError {
             AppError::ConfigError(_) => (500, "Internal Server Error"),
             AppError::TokenizerError(_) => (500, "Internal Server Error"),
             AppError::ValidationError(_) => (400, "Bad Request"),
+            AppError::InvalidParameter(_) => (400, "Bad Request"),
             AppError::NotFound => (404, "Not Found"),
             AppError::Unauthorized => (401, "Unauthorized"),
             AppError::Forbidden => (403, "Forbidden"),

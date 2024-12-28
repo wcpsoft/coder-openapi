@@ -42,7 +42,7 @@ impl ChatCompletionMessage {
     pub fn new_message(sender: String, content: String) -> Self {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .ok_or(AppError::Generic("Failed to get timestamp".to_string()))?
             .as_secs();
 
         Self {

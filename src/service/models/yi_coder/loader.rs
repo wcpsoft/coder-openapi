@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use crate::utils::{config::AppConfig, download::ModelDownloader};
 use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
@@ -63,7 +64,8 @@ impl ModelLoader {
 
         Ok(Self {
             model_paths,
-            device: Device::cuda_if_available(0).unwrap(),
+            device: Device::cuda_if_available(0)
+                .map_err(|e| AppError::Generic(format!("Failed to get CUDA device: {}", e)))?,
             config_path: PathBuf::from(config_path),
         })
     }

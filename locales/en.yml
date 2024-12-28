@@ -10,6 +10,18 @@ errors:
   output_processing_failed: "Output processing failed: {}"
   authentication_failed: "Authentication failed"
   invalid_api_key: "Invalid API key"
+  bad_request: "Bad Request"
+  internal_server_error: "Internal Server Error"
+  not_found: "Not Found"
+  unauthorized: "Unauthorized"
+  forbidden: "Forbidden"
+  service_unavailable: "Service Unavailable"
+  serialization_failed: "Serialization failed: {}"
+  service_unavailable_detail: "Service unavailable: {}, URI: {}, Method: {}"
+  service_not_ready: "Service not ready, URI: {}, Method: {}"
+  conversion_failed: "Error conversion failed: {}, URI: {}, Method: {}"
+  error_occurred: "Error occurred - URI: {}, Method: {}, Error: {}, Response: {}"
+  invalid_status_code: "Invalid status code {} - falling back to 500"
 
 models:
   yi_coder: "Yi-Coder"
