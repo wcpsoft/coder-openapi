@@ -17,16 +17,16 @@ impl ModelLoader {
         let config = AppConfig::load(config_path)?;
         let model_config = config.get_model_config(model_id)?;
 
-        // Create a Vec<String> of files to download
-        // Create cache directory if it doesn't exist
+        // 创建要下载的文件列表
+        // 如果缓存目录不存在则创建
         let cache_dir = format!("models_cache/{}", model_config.hf_hub_id);
         std::fs::create_dir_all(&cache_dir)?;
 
-        // Check which files need to be downloaded
+        // 检查哪些文件需要下载
         let mut files_to_download = Vec::new();
         let mut model_paths = Vec::new();
 
-        // Check weights files
+        // 检查权重文件
         for weight_file in &model_config.model_files.weights {
             let file_path = format!("{}/{}", cache_dir, weight_file);
             if !std::path::Path::new(&file_path).exists() {
@@ -35,7 +35,7 @@ impl ModelLoader {
             model_paths.push(PathBuf::from(file_path));
         }
 
-        // Check other required files
+        // 检查其他必需文件
         let other_files = [
             &model_config.model_files.config,
             &model_config.model_files.tokenizer,
@@ -51,7 +51,7 @@ impl ModelLoader {
             model_paths.push(PathBuf::from(file_path));
         }
 
-        // Only download missing files
+        // 仅下载缺失的文件
         if !files_to_download.is_empty() {
             ModelDownloader::download_all_model_files(
                 config_path,
