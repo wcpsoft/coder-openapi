@@ -4,6 +4,7 @@ use super::loader::DeepseekCoderLoader;
 use super::transformer::DeepseekCoderTransformer;
 use crate::entities::chat_completion_message::ChatCompletionMessage;
 use crate::error::AppError;
+use crate::service::chat::chat_completion::ChatCompletionParams;
 use candle_core::Tensor;
 use candle_nn::Module;
 use rand::{thread_rng, Rng};
@@ -49,26 +50,22 @@ impl DeepseekCoder {
     /// 返回 Result<Vec<ChatCompletionMessage>, AppError>
     pub async fn infer(
         &self,
-        _messages: Vec<ChatCompletionMessage>,
-        _temperature: Option<f32>,
-        _top_p: Option<f32>,
-        _n: Option<usize>,
-        _max_tokens: Option<usize>,
-        _stream: Option<bool>,
+        messages: Vec<ChatCompletionMessage>,
+        params: ChatCompletionParams,
     ) -> Result<Vec<ChatCompletionMessage>, AppError> {
         // 1. 使用tokenizer将输入消息转换为token序列
         let tokenizer = self._loader.get_tokenizer().await?;
         let mut input_ids: Vec<u32> = Vec::with_capacity(1024);
-        for message in &_messages {
+        for message in &messages {
             let encoding = tokenizer
                 .encode(message.content.clone(), false)
                 .map_err(|e| AppError::TokenizerError(e.to_string()))?;
-            input_ids.extend(encoding.get_ids().iter().map(|&x| x as u32));
+            input_ids.extend(encoding.get_ids().iter().copied());
         }
 
         // 2. 将token序列输入transformer模型进行处理
         let input_tensor =
-            Tensor::from_slice(&input_ids, &[input_ids.len()], &self._transformer.device())?;
+            Tensor::from_slice(&input_ids, &[input_ids.len()], self._transformer.device())?;
 
         // 使用contiguous()确保内存布局优化
         let input_tensor = input_tensor.contiguous()?;
@@ -82,10 +79,10 @@ impl DeepseekCoder {
         let mut logits = logits.squeeze(0)?;
 
         // 3. 根据temperature和top_p参数进行采样
-        let next_token = if let Some(temp) = _temperature {
+        let next_token = if let Some(temp) = params.temperature {
             let logits = logits.squeeze(0)?;
             let temp_tensor: Tensor =
-                Tensor::from_slice(&[temp], &[1], &self._transformer.device())?;
+                Tensor::from_slice(&[temp], &[1], self._transformer.device())?;
             let scaled_logits: Tensor = logits.div(&temp_tensor)?;
             let probs: Tensor = candle_nn::ops::softmax(&scaled_logits, 0)?;
             let mut rng = thread_rng();
@@ -101,8 +98,8 @@ impl DeepseekCoder {
                     }]);
                 }
             }
-            let max_idx = probs.argmax(0)?.to_scalar::<u32>()?;
-            max_idx
+
+            probs.argmax(0)?.to_scalar::<u32>()?
         } else {
             logits.argmax(1)?.to_scalar::<u32>()?
         };
@@ -111,18 +108,18 @@ impl DeepseekCoder {
         let output_text = tokenizer.decode(&[next_token], true)?;
 
         // 5. 处理流式输出（如果stream参数为true）
-        if _stream.unwrap_or(false) {
+        if params.stream.unwrap_or(false) {
             let mut stream_output = String::new();
             let mut generated_tokens = 0;
-            let max_tokens = _max_tokens.unwrap_or(2048);
+            let max_tokens = params.max_tokens.unwrap_or(2048);
 
             while generated_tokens < max_tokens {
                 // 生成下一个token
-                let next_token = if let Some(temp) = _temperature {
+                let next_token = if let Some(temp) = params.temperature {
                     let logits = logits.squeeze(0)?;
                     let _shape = [1];
                     let temp_tensor =
-                        Tensor::from_slice(&[temp], &[1], &self._transformer.device())?;
+                        Tensor::from_slice(&[temp], &[1], self._transformer.device())?;
                     let scaled_logits = logits.div(&temp_tensor)?;
                     let probs = candle_nn::ops::softmax(&scaled_logits, 0)?;
                     let mut rng = thread_rng();
@@ -138,8 +135,8 @@ impl DeepseekCoder {
                             }]);
                         }
                     }
-                    let max_idx = probs.argmax(0)?.to_scalar::<u32>()?;
-                    max_idx
+
+                    probs.argmax(0)?.to_scalar::<u32>()?
                 } else {
                     logits.argmax(1)?.to_scalar::<u32>()?
                 };
@@ -156,11 +153,8 @@ impl DeepseekCoder {
 
                 // 更新输入序列
                 input_ids.push(next_token);
-                let input_tensor = Tensor::from_slice(
-                    &input_ids,
-                    (input_ids.len(),),
-                    &self._transformer.device(),
-                )?;
+                let input_tensor =
+                    Tensor::from_slice(&input_ids, (input_ids.len(),), self._transformer.device())?;
                 logits = self._transformer.forward(&input_tensor)?;
             }
 

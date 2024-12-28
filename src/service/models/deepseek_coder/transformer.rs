@@ -47,7 +47,7 @@ impl Module for MultiHeadAttention {
         let value = self._value.forward(input)?;
 
         let attention = query.matmul(&key.t()?)?;
-        let dim = attention.rank() as usize - 1;
+        let dim = attention.rank() - 1;
         let max = attention.max(dim)?;
         let exp = (attention - max)?.exp()?;
         let sum = exp.sum(dim)?;
@@ -128,10 +128,10 @@ impl TransformerLayer {
         );
 
         Ok(Self {
-            _attention: _attention,
-            _feed_forward: _feed_forward,
-            _norm1: _norm1,
-            _norm2: _norm2,
+            _attention,
+            _feed_forward,
+            _norm1,
+            _norm2,
         })
     }
 }

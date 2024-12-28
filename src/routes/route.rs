@@ -1,15 +1,22 @@
-use crate::Locales;
 use actix_web::web;
-use std::sync::Arc;
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+struct RouteConfig {
+    routes: V1Routes,
+}
+
+#[derive(Debug, Deserialize)]
+struct V1Routes {
+    chat: String,
+    models: String,
+    download: String,
+}
 
 pub fn chat_routes() -> actix_web::Scope {
-    web::scope("/chat")
-        .service(
-            web::resource("")
-                .route(web::get().to(|locales: web::Data<Arc<Locales>>| async move {
-                    locales.t("routes.chat")
-                })),
-        )
+    let config = load_route_config();
+    web::scope(&config.routes.chat)
+        .service(web::resource("").route(web::get().to(|| async move { "Chat API" })))
         .service(
             web::resource("/completions")
                 .route(web::post().to(crate::controller::chat::chat_completion::chat_completion)),
@@ -17,15 +24,14 @@ pub fn chat_routes() -> actix_web::Scope {
 }
 
 pub fn model_routes() -> actix_web::Scope {
-    crate::controller::models::models::routes()
+    let config = load_route_config();
+    actix_web::web::scope(&config.routes.models)
+        .configure(crate::controller::models::models::routes)
 }
 
 pub fn download_routes() -> actix_web::Scope {
-    web::scope("/download").route(
-        "",
-        web::get()
-            .to(|locales: web::Data<Arc<Locales>>| async move { locales.t("routes.download") }),
-    )
+    let config = load_route_config();
+    web::scope(&config.routes.download).route("", web::get().to(|| async move { "Download API" }))
 }
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -40,4 +46,9 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .service(model_routes())
             .service(download_routes()),
     );
+}
+
+fn load_route_config() -> RouteConfig {
+    let config_str = std::fs::read_to_string("config/route.yml").expect("Failed to read route.yml");
+    serde_yaml::from_str(&config_str).expect("Failed to parse route.yml")
 }

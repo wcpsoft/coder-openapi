@@ -4,6 +4,7 @@ use super::loader::ModelLoader;
 use super::transformer::YiCoderTransformer;
 use crate::entities::chat_completion_message::ChatCompletionMessage;
 use crate::error::AppError;
+use crate::service::chat::chat_completion::ChatCompletionParams;
 use candle_core::{DType, Tensor};
 use rand::distributions::{Distribution, WeightedIndex};
 
@@ -41,15 +42,11 @@ impl YiCoder {
     pub async fn infer(
         &self,
         messages: Vec<ChatCompletionMessage>,
-        temperature: Option<f32>,
-        top_p: Option<f32>,
-        _n: Option<usize>,
-        max_tokens: Option<usize>,
-        stream: Option<bool>,
+        params: ChatCompletionParams,
     ) -> Result<Vec<ChatCompletionMessage>, AppError> {
-        let _temp = temperature.unwrap_or(self.generation_config.temperature) as f64;
-        let _top_p = top_p.unwrap_or(self.generation_config.top_p);
-        let _max_tokens = max_tokens.unwrap_or(self.generation_config.max_tokens);
+        let _temp = params.temperature.unwrap_or(self.generation_config.temperature) as f64;
+        let _top_p = params.top_p.unwrap_or(self.generation_config.top_p);
+        let _max_tokens = params.max_tokens.unwrap_or(self.generation_config.max_tokens);
 
         let tokenizer = self._loader.get_tokenizer().await?;
         let mut input_ids = Vec::new();
@@ -58,14 +55,14 @@ impl YiCoder {
             input_ids.extend(tokens.get_ids().to_vec());
         }
 
-        let input_tensor = Tensor::new(&input_ids[..], &self._transformer.device())?;
+        let input_tensor = Tensor::new(&input_ids[..], self._transformer.device())?;
         let mut logits = self._transformer.forward(&input_tensor)?;
 
-        let next_token = if let Some(temp) = temperature {
+        let next_token = if let Some(temp) = params.temperature {
             let logits = logits.squeeze(0)?;
             let scaled_logits = logits
                 .to_dtype(DType::F64)?
-                .broadcast_div(&Tensor::new(temp, &self._transformer.device())?)?;
+                .broadcast_div(&Tensor::new(temp, self._transformer.device())?)?;
             let probs = softmax(&scaled_logits, 0)?.to_dtype(DType::F32)?;
 
             let probs_vec: Vec<f32> = probs.to_vec1()?;
@@ -78,19 +75,19 @@ impl YiCoder {
 
         let output_text = tokenizer.decode(&[next_token], true)?;
 
-        if stream.unwrap_or(false) {
+        if params.stream.unwrap_or(false) {
             let mut stream_output = String::new();
             let mut generated_tokens = 0;
-            let max_tokens = max_tokens.unwrap_or(self.generation_config.max_tokens);
+            let max_tokens = params.max_tokens.unwrap_or(self.generation_config.max_tokens);
             let mut input_ids = input_ids;
 
             while generated_tokens < max_tokens {
                 // Generate next token
-                let next_token = if let Some(temp) = temperature {
+                let next_token = if let Some(temp) = params.temperature {
                     let logits = logits.squeeze(0)?;
                     let scaled_logits = logits
                         .to_dtype(DType::F64)?
-                        .broadcast_div(&Tensor::new(temp, &self._transformer.device())?)?;
+                        .broadcast_div(&Tensor::new(temp, self._transformer.device())?)?;
                     let probs = softmax(&scaled_logits, 0)?.to_dtype(DType::F32)?;
 
                     let probs_vec: Vec<f32> = probs.to_vec1()?;
@@ -116,11 +113,8 @@ impl YiCoder {
 
                 // Update input sequence
                 input_ids.push(next_token);
-                let input_tensor = Tensor::from_slice(
-                    &input_ids,
-                    (input_ids.len(),),
-                    &self._transformer.device(),
-                )?;
+                let input_tensor =
+                    Tensor::from_slice(&input_ids, (input_ids.len(),), self._transformer.device())?;
                 logits = self._transformer.forward(&input_tensor)?;
             }
 

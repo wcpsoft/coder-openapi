@@ -1,9 +1,8 @@
-use crate::locales::{LocaleError, Locales};
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     error::ResponseError,
     http::{header::ContentType, StatusCode},
-    web, Error, HttpResponse,
+    Error, HttpResponse,
 };
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, future::Future, pin::Pin};
@@ -15,7 +14,7 @@ pub enum AppError {
     Io(String),
     #[error("Anyhow error: {0}")]
     Anyhow(String),
-    #[error("Model error: {0}")]
+    #[error("Model not available: {0}")]
     Model(String),
     #[error("Candle error: {0}")]
     Candle(String),
@@ -25,24 +24,22 @@ pub enum AppError {
     SafeTensor(String),
     #[error("Invalid model: {0}")]
     InvalidModel(String),
-    #[error("Config error: {0}")]
+    #[error("Configuration error: {0}")]
     ConfigError(String),
     #[error("Tokenizer error: {0}")]
     TokenizerError(String),
     #[error("Validation error: {0}")]
     ValidationError(ValidationDetails),
-    #[error("Not found")]
+    #[error("Not Found")]
     NotFound,
     #[error("Unauthorized")]
     Unauthorized,
     #[error("Forbidden")]
     Forbidden,
-    #[error("Service unavailable")]
+    #[error("Service Unavailable")]
     ServiceUnavailable,
     #[error("Generic error: {0}")]
     Generic(String),
-    #[error("Locale error: {0}")]
-    Locale(#[from] LocaleError),
 }
 
 impl From<actix_web::Error> for AppError {
@@ -94,51 +91,45 @@ pub struct ErrorResponse {
 
 impl ErrorResponse {
     pub fn from_error(error: &AppError) -> Self {
-        let locales = match Locales::new("locales") {
-            Ok(locales) => locales,
-            Err(err) => {
-                log::error!("Failed to load locales: {}", err);
-                return Self {
-                    code: 500,
-                    status: "Internal Server Error".to_string(),
-                    message: "Failed to load locales".to_string(),
-                    data: None,
-                };
-            }
-        };
-
         let (code, status) = match error {
-            AppError::Io(_) => (500, locales.t("errors.internal_server_error")),
-            AppError::Anyhow(_) => (500, locales.t("errors.internal_server_error")),
-            AppError::Model(_) => (400, locales.t("errors.bad_request")),
-            AppError::Candle(_) => (500, locales.t("errors.internal_server_error")),
-            AppError::Chat(_) => (400, locales.t("errors.bad_request")),
-            AppError::SafeTensor(_) => (500, locales.t("errors.internal_server_error")),
-            AppError::InvalidModel(_) => (400, locales.t("errors.bad_request")),
-            AppError::ConfigError(_) => (500, locales.t("errors.internal_server_error")),
-            AppError::TokenizerError(_) => (500, locales.t("errors.internal_server_error")),
-            AppError::ValidationError(_) => (400, locales.t("errors.bad_request")),
-            AppError::NotFound => (404, locales.t("errors.not_found")),
-            AppError::Unauthorized => (401, locales.t("errors.unauthorized")),
-            AppError::Forbidden => (403, locales.t("errors.forbidden")),
-            AppError::ServiceUnavailable => (503, locales.t("errors.service_unavailable")),
-            AppError::Generic(_) => (500, locales.t("errors.internal_server_error")),
-            AppError::Locale(_) => (500, "Locale error".to_string()),
+            AppError::Io(_) => (500, t!("errors.http.internal_server_error").to_string()),
+            AppError::Anyhow(_) => (500, t!("errors.http.internal_server_error").to_string()),
+            AppError::Model(_) => (400, t!("errors.http.bad_request").to_string()),
+            AppError::Candle(_) => (500, t!("errors.http.internal_server_error").to_string()),
+            AppError::Chat(_) => (400, t!("errors.http.bad_request").to_string()),
+            AppError::SafeTensor(_) => (500, t!("errors.http.internal_server_error").to_string()),
+            AppError::InvalidModel(_) => (400, t!("errors.http.bad_request").to_string()),
+            AppError::ConfigError(_) => (500, t!("errors.http.internal_server_error").to_string()),
+            AppError::TokenizerError(_) => {
+                (500, t!("errors.http.internal_server_error").to_string())
+            }
+            AppError::ValidationError(_) => (400, t!("errors.http.bad_request").to_string()),
+            AppError::NotFound => (404, t!("errors.http.not_found").to_string()),
+            AppError::Unauthorized => (401, t!("errors.http.unauthorized").to_string()),
+            AppError::Forbidden => (403, t!("errors.http.forbidden").to_string()),
+            AppError::ServiceUnavailable => {
+                (503, t!("errors.http.service_unavailable").to_string())
+            }
+            AppError::Generic(_) => (500, t!("errors.http.internal_server_error").to_string()),
         };
 
+        let log_message = format!("{}: {:?}", t!("logs.creating_error_response"), error);
+        log::debug!("{}", log_message); // 记录错误上下文
         let mut response = ErrorResponse {
             code,
             status: status.to_string(),
             message: error.to_string(),
             data: None,
         };
+        log::debug!("Initial error response: {:?}", response); // 记录初始响应
 
         if let AppError::ValidationError(details) = error {
             response.data = match serde_json::to_value(details) {
                 Ok(value) => Some(value),
                 Err(err) => {
-                    let msg = format!("Serialization failed: {}", err.to_string());
+                    let msg = format!("Serialization failed: {}", err);
                     log::error!("{}", msg);
+                    log::debug!("Validation details that failed serialization: {:?}", details); // 记录序列化失败的验证详情
                     None
                 }
             };
@@ -199,7 +190,11 @@ where
             .poll_ready(&mut core::task::Context::from_waker(futures::task::noop_waker_ref()))
         {
             core::task::Poll::Ready(Ok(())) => {
-                log::debug!("Service ready to handle request");
+                log::debug!(
+                    "Service ready to handle request: {} {}",
+                    req_parts.method(),
+                    req_parts.uri()
+                ); // 服务准备处理请求
             }
             core::task::Poll::Ready(Err(err)) => {
                 let msg = format!(
@@ -209,6 +204,7 @@ where
                     req_parts.method()
                 );
                 log::error!("{}", msg);
+                log::debug!("Service unavailable details: {:?}", req_parts); // 记录服务不可用详情
                 let response = ErrorResponse::from_error(&AppError::ServiceUnavailable);
                 let http_response = HttpResponse::ServiceUnavailable().json(response);
                 return Box::pin(async move {
@@ -218,6 +214,7 @@ where
             core::task::Poll::Pending => {
                 let msg = format!("Service not ready: {} {}", req_parts.uri(), req_parts.method());
                 log::warn!("{}", msg);
+                log::debug!("Service not ready details: {:?}", req_parts); // 记录服务未准备详情
                 let response = ErrorResponse::from_error(&AppError::ServiceUnavailable);
                 let http_response = HttpResponse::ServiceUnavailable().json(response);
                 return Box::pin(async move {
@@ -226,23 +223,9 @@ where
             }
         }
 
-        // Get locales from app data
-        let locales = match req.app_data::<web::Data<Locales>>() {
-            Some(locales) => locales,
-            None => {
-                log::error!("Failed to get locales from app data");
-                let response = ErrorResponse::from_error(&AppError::Locale(LocaleError::NotFound));
-                let http_response = HttpResponse::InternalServerError().json(response);
-                return Box::pin(async move {
-                    Ok(ServiceResponse::new(req_parts, http_response.map_into_boxed_body()))
-                });
-            }
-        };
-
         // Log request details for debugging
         log::debug!(
-            "{}: method={}, uri={}, headers={:?}",
-            locales.t("logs.handling_request"),
+            "Handling request: method={}, uri={}, headers={:?}",
             req_parts.method(),
             req_parts.uri(),
             req_parts.headers()
@@ -250,10 +233,10 @@ where
 
         // Log potential issues (these are warnings, not errors)
         if req_parts.headers().is_empty() {
-            log::warn!("{}", locales.t("logs.no_headers_warning"));
+            log::warn!("Request has no headers");
         }
         if req_parts.uri().path().is_empty() {
-            log::warn!("{}", locales.t("logs.empty_path_warning"));
+            log::warn!("Request path is empty");
         }
 
         // 继续处理请求

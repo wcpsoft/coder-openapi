@@ -1,27 +1,51 @@
 routes:
   chat: "Chat routes"
   models: "Model routes"
-  download: "Download routes"
 
 errors:
-  model_not_available: "Model not available"
-  model_not_found: "Model not found"
-  model_not_loaded: "Model not loaded: {}"
-  output_processing_failed: "Output processing failed: {}"
-  authentication_failed: "Authentication failed"
-  invalid_api_key: "Invalid API key"
-  bad_request: "Bad Request"
-  internal_server_error: "Internal Server Error"
-  not_found: "Not Found"
-  unauthorized: "Unauthorized"
-  forbidden: "Forbidden"
-  service_unavailable: "Service Unavailable"
-  serialization_failed: "Serialization failed: {}"
-  service_unavailable_detail: "Service unavailable: {}, URI: {}, Method: {}"
-  service_not_ready: "Service not ready, URI: {}, Method: {}"
-  conversion_failed: "Error conversion failed: {}, URI: {}, Method: {}"
+  model:
+    not_available: "Model not available"
+    not_found: "Model not found"
+    not_loaded: "Model not loaded: {}"
+  validation:
+    temperature_range: "temperature must be between 0 and 2"
+    top_p_range: "top_p must be between 0 and 1"
+    n_range: "n must be greater than 0"
+    max_tokens_range: "max_tokens must be greater than 0"
+    invalid_parameter: "Invalid parameter: {}"
+  stream:
+    lock_failed: "Failed to lock sender"
+    sender_not_initialized: "Stream sender not initialized"
+    buffer_full: "Stream buffer full"
+    channel_closed: "Stream channel closed"
+  cuda:
+    device_failed: "Failed to get CUDA device: {}"
+  weighted_index:
+    error: "WeightedIndex error: {}"
+  stream_response:
+    failed: "Failed to send stream response: {}"
+  processing:
+    output_failed: "Output processing failed: {}"
+    serialization_failed: "Serialization failed: {}"
+    conversion_failed: "Error conversion failed: {}, URI: {}, Method: {}"
+  authentication:
+    failed: "Authentication failed"
+    invalid_api_key: "Invalid API key"
+  http:
+    bad_request: "Bad Request"
+    internal_server_error: "Internal Server Error"
+    not_found: "Not Found"
+    unauthorized: "Unauthorized"
+    forbidden: "Forbidden"
+    service_unavailable: "Service Unavailable"
+    service_unavailable_detail: "Service unavailable: {}, URI: {}, Method: {}"
+    service_not_ready: "Service not ready, URI: {}, Method: {}"
+    invalid_status_code: "Invalid status code {} - falling back to 500"
+  tokenizer:
+    error: "Tokenizer error: {}"
+  generic:
+    error: "Generic error: {}"
   error_occurred: "Error occurred - URI: {}, Method: {}, Error: {}, Response: {}"
-  invalid_status_code: "Invalid status code {} - falling back to 500"
 
 models:
   yi_coder: "Yi-Coder"
@@ -32,6 +56,8 @@ models:
 responses:
   yi_coder_response: "Yi Coder response to: {}"
   deepseek_coder_response: "Deepseek Coder response to: {}"
+  model_field_required: "model field is required"
+  messages_field_required: "messages field cannot be empty"
 
 download:
   request: "Received download request: {}"
@@ -41,3 +67,10 @@ logs:
   handling_request: "Handling request"
   no_headers_warning: "Request has no headers - proceeding anyway as this is technically valid"
   empty_path_warning: "Request path is empty - proceeding with root path handling"
+  chat_request_received: "Received chat completion request"
+  empty_model_warning: "Empty model field in request"
+  empty_messages_warning: "Empty messages field in request"
+  request_validation_passed: "Request validation passed"
+
+init:
+  failed: "Failed to initialize application"

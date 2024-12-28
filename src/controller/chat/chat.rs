@@ -39,11 +39,13 @@ pub mod error {
     impl fmt::Display for ChatError {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                ChatError::ModelNotAvailable => write!(f, "Model not available"),
-                ChatError::ModelNotFound => write!(f, "Model not found"),
-                ChatError::ModelNotLoaded(e) => write!(f, "Model not loaded: {}", e),
+                ChatError::ModelNotAvailable => write!(f, "{}", t!("errors.model.not_available")),
+                ChatError::ModelNotFound => write!(f, "{}", t!("errors.model.not_found")),
+                ChatError::ModelNotLoaded(e) => {
+                    write!(f, "{}", t!("errors.model.not_loaded", "e" => e))
+                }
                 ChatError::OutputProcessingFailed(e) => {
-                    write!(f, "Output processing failed: {}", e)
+                    write!(f, "{}", t!("errors.processing.output_failed", "e" => e))
                 }
             }
         }
@@ -53,20 +55,20 @@ pub mod error {
         fn error_response(&self) -> HttpResponse {
             match self {
                 ChatError::ModelNotAvailable => HttpResponse::BadRequest().json(json!({
-                    "error": "Model not available",
-                    "message": "Model not available"
+                    "error": t!("errors.model.not_available"),
+                    "message": t!("errors.model.not_available")
                 })),
                 ChatError::ModelNotFound => HttpResponse::NotFound().json(json!({
-                    "error": "Model not found"
+                    "error": t!("errors.model.not_found")
                 })),
                 ChatError::ModelNotLoaded(e) => HttpResponse::InternalServerError().json(json!({
-                    "error": "Model not loaded",
-                    "message": e
+                    "error": t!("errors.model.not_loaded", "e" => e),
+                    "message": t!("errors.model.not_loaded", "e" => e)
                 })),
                 ChatError::OutputProcessingFailed(e) => {
                     HttpResponse::InternalServerError().json(json!({
-                        "error": "Output processing failed",
-                        "message": e
+                        "error": t!("errors.processing.output_failed", "e" => e),
+                        "message": t!("errors.processing.output_failed", "e" => e)
                     }))
                 }
             }

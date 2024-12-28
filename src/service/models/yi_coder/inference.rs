@@ -33,24 +33,26 @@ impl YiCoderInference {
         let temperature = temperature.unwrap_or(0.7);
         if temperature <= 0.0 || temperature > 2.0 {
             return Err(AppError::InvalidParameter(
-                "temperature must be between 0 and 2".to_string(),
+                t!("errors.validation.temperature_range").to_string(),
             ));
         }
 
         let top_p = top_p.unwrap_or(0.9);
         if top_p <= 0.0 || top_p > 1.0 {
-            return Err(AppError::InvalidParameter("top_p must be between 0 and 1".to_string()));
+            return Err(AppError::InvalidParameter(
+                t!("errors.validation.top_p_range").to_string(),
+            ));
         }
 
         let n = n.unwrap_or(1);
         if n == 0 {
-            return Err(AppError::InvalidParameter("n must be greater than 0".to_string()));
+            return Err(AppError::InvalidParameter(t!("errors.validation.n_range").to_string()));
         }
 
         let max_tokens = max_tokens.unwrap_or(100);
         if max_tokens == 0 {
             return Err(AppError::InvalidParameter(
-                "max_tokens must be greater than 0".to_string(),
+                t!("errors.validation.max_tokens_range").to_string(),
             ));
         }
 
@@ -67,12 +69,10 @@ impl YiCoderInference {
             let sender = self
                 .sender
                 .lock()
-                .map_err(|_| AppError::Generic("Failed to lock sender".to_string()))?
+                .map_err(|_| AppError::Generic(t!("errors.stream.lock_failed").to_string()))?
                 .clone()
                 .ok_or_else(|| {
-                    AppError::Generic(
-                        "Stream sender not initialized. Call set_stream_sender() first".to_string(),
-                    )
+                    AppError::Generic(t!("errors.stream.sender_not_initialized").to_string())
                 })?;
 
             let message = ChatCompletionMessage {
@@ -83,10 +83,13 @@ impl YiCoderInference {
                 ),
             };
 
-            sender
-                .send(message.clone())
-                .await
-                .map_err(|e| AppError::Generic(format!("Failed to send stream message: {}", e)))?;
+            sender.send(message.clone()).await.map_err(|e| {
+                AppError::Generic(format!(
+                    "{}: {}",
+                    t!("errors.stream_response.failed").to_string(),
+                    e
+                ))
+            })?;
 
             Ok(vec![message])
         } else {
@@ -105,20 +108,20 @@ impl YiCoderInference {
         if let Some(sender) = self
             .sender
             .lock()
-            .map_err(|_| AppError::Generic("Failed to lock sender".to_string()))?
+            .map_err(|_| AppError::Generic(t!("errors.stream.lock_failed").to_string()))?
             .as_ref()
         {
             sender.try_send(message.clone()).map_err(|e| match e {
                 mpsc::error::TrySendError::Full(_) => {
-                    AppError::Generic("Stream buffer full".to_string())
+                    AppError::Generic(t!("errors.stream.buffer_full").to_string())
                 }
                 mpsc::error::TrySendError::Closed(_) => {
-                    AppError::Generic("Stream channel closed".to_string())
+                    AppError::Generic(t!("errors.stream.channel_closed").to_string())
                 }
             })?;
             Ok(())
         } else {
-            Err(AppError::Generic("Stream sender not initialized".to_string()))
+            Err(AppError::Generic(t!("errors.stream.sender_not_initialized").to_string()))
         }
     }
 }

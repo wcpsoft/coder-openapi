@@ -1,5 +1,5 @@
 use crate::entities::chat_completion_message::ChatCompletionMessage;
-use crate::service::chat::chat_completion::ChatCompletionService;
+use crate::service::chat::chat_completion::{ChatCompletionParams, ChatCompletionService};
 use crate::utils::config::get_config;
 use actix_web::{web, HttpResponse};
 use chrono::{DateTime, Utc};
@@ -59,18 +59,15 @@ pub async fn chat_completion(req: web::Json<ChatCompletionRequest>) -> HttpRespo
     let config = get_config();
     let chat_config = &config.chat;
 
-    match service
-        .complete(
-            &req.model,
-            req.messages.clone(),
-            req.temperature.or(Some(chat_config.defaults.temperature)),
-            req.top_p.or(Some(chat_config.defaults.top_p)),
-            req.n.or(Some(chat_config.defaults.n)),
-            req.max_tokens.or(Some(chat_config.defaults.max_tokens)),
-            req.stream.or(Some(chat_config.defaults.stream)),
-        )
-        .await
-    {
+    let params = ChatCompletionParams {
+        temperature: req.temperature.or(Some(chat_config.defaults.temperature)),
+        top_p: req.top_p.or(Some(chat_config.defaults.top_p)),
+        n: req.n.or(Some(chat_config.defaults.n)),
+        max_tokens: req.max_tokens.or(Some(chat_config.defaults.max_tokens)),
+        stream: req.stream.or(Some(chat_config.defaults.stream)),
+    };
+
+    match service.complete(&req.model, req.messages.clone(), params).await {
         Ok(messages) => {
             let response = ChatCompletionResponse {
                 id: Uuid::new_v4().to_string(),

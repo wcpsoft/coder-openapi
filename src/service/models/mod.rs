@@ -77,7 +77,7 @@ impl ModelManager {
         let mut status = self.model_status.write().await;
 
         // Check yi-coder files
-        let yi_coder_dir = format!("models_cache/01-ai/Yi-Coder-1.5B-Chat");
+        let yi_coder_dir = "models_cache/01-ai/Yi-Coder-1.5B-Chat".to_string();
         let yi_coder_files = [
             "model.safetensors",
             "config.json",
@@ -98,7 +98,7 @@ impl ModelManager {
 
         // Check deepseek-coder files
         let deepseek_coder_dir =
-            format!("models_cache/deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct");
+            "models_cache/deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct".to_string();
         let deepseek_coder_files = [
             "model-00001-of-000004.safetensors",
             "model-00002-of-000004.safetensors",

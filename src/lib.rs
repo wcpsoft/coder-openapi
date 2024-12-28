@@ -9,7 +9,6 @@
 //! - `routes`: 定义API端点和路由
 //! - `service`: 实现业务逻辑和服务
 //! - `utils`: 包含实用函数和辅助工具
-//! - `locales`: 国际化支持
 //!
 //! # 示例
 //! ```rust
@@ -27,12 +26,18 @@
 //!     .await
 //! }
 //! ```
+#[macro_use]
+extern crate rust_i18n;
 
+// Initialize i18n with locales directory and fallback to English
+i18n!("locales", fallback = "en");
+
+// Re-export i18n functions
+pub use rust_i18n::{i18n, set_locale, t};
 extern crate log;
 pub mod controller;
 pub mod entities;
 pub mod error;
-pub mod locales;
 pub mod middleware;
 pub mod route;
 pub mod routes;
@@ -46,6 +51,5 @@ pub mod utils {
 pub use controller::{chat, models};
 pub use entities::*;
 pub use error::*;
-pub use locales::*;
 pub use routes::*;
 pub use utils::*;

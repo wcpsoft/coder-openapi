@@ -1,28 +1,19 @@
 use crate::error::AppError;
 use crate::service::models::yi_coder::loader::ModelLoader;
 use crate::service::models::{ModelManager, ModelStatus};
-pub use crate::Locales;
 use actix_web::{get, post, web, HttpResponse};
 use anyhow::Result;
 use log::{debug, info};
 use serde::Deserialize;
 use serde_json::json;
-use std::sync::Arc;
 
 #[get("/models")]
-pub async fn list_models(
-    manager: web::Data<ModelManager>,
-    locales: web::Data<Arc<Locales>>,
-) -> HttpResponse {
-    debug!("Received list models request");
+pub async fn list_models(manager: web::Data<ModelManager>) -> HttpResponse {
+    debug!("{}", t!("logs.handling_request"));
     let status = manager.get_all_model_status().await;
     let models = vec![
-        ("yi-coder", locales.t("models.yi_coder"), locales.t("models.yi_coder_description")),
-        (
-            "deepseek-coder",
-            locales.t("models.deepseek_coder"),
-            locales.t("models.deepseek_coder_description"),
-        ),
+        ("yi-coder", t!("models.yi_coder"), t!("models.yi_coder_description")),
+        ("deepseek-coder", t!("models.deepseek_coder"), t!("models.deepseek_coder_description")),
     ];
 
     let response = models
@@ -48,17 +39,16 @@ pub async fn list_models(
 #[post("/download")]
 pub async fn download_model(
     _manager: web::Data<ModelManager>,
-    _locales: web::Data<Arc<Locales>>,
     req: web::Json<DownloadRequest>,
 ) -> Result<HttpResponse, AppError> {
-    debug!("Received download request: {}", req.model_id);
+    debug!("{}", t!("download.request", "model_id" => req.model_id));
     let model_id = &req.model_id;
     let config_path = "config/app.yml";
 
     // Initialize model loader which will download all required files
     let _loader = ModelLoader::new(model_id, config_path).await?;
 
-    info!("Successfully downloaded model: {}", model_id);
+    info!("{}", t!("download.success", "model_id" => model_id));
     Ok(HttpResponse::Ok().json(json!({
         "status": "success",
         "model_id": model_id
@@ -70,6 +60,6 @@ struct DownloadRequest {
     model_id: String,
 }
 
-pub fn routes() -> actix_web::Scope {
-    web::scope("").service(list_models).service(download_model)
+pub fn routes(cfg: &mut actix_web::web::ServiceConfig) {
+    cfg.service(web::scope("").service(list_models).service(download_model));
 }

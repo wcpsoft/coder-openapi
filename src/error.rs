@@ -11,19 +11,19 @@ pub enum MiddlewareError {
 
 #[derive(Debug, Error)]
 pub enum AppError {
-    #[error("Validation error: {0}")]
+    #[error("Invalid parameter: {0}")]
     ValidationError(String),
-    #[error("Resource not found")]
+    #[error("Not Found")]
     NotFound,
-    #[error("Unauthorized access")]
+    #[error("Unauthorized")]
     Unauthorized,
-    #[error("Forbidden access")]
+    #[error("Forbidden")]
     Forbidden,
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("Anyhow error: {0}")]
+    #[error("Generic error: {0}")]
     Anyhow(#[from] anyhow::Error),
-    #[error("Model error: {0}")]
+    #[error("Model not available: {0}")]
     Model(String),
     #[error("Candle error: {0}")]
     Candle(#[from] candle_core::Error),
@@ -31,9 +31,9 @@ pub enum AppError {
     Chat(String),
     #[error("SafeTensor error: {0}")]
     SafeTensor(#[from] SafeTensorError),
-    #[error("Invalid model: {0}")]
+    #[error("Model not found: {0}")]
     InvalidModel(String),
-    #[error("Configuration error: {0}")]
+    #[error("Config error: {0}")]
     ConfigError(String),
     #[error("Tokenizer error: {0}")]
     TokenizerError(String),

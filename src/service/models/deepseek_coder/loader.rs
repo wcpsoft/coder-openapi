@@ -23,7 +23,7 @@ impl DeepseekCoderLoader {
     pub fn get_var_builder(&self) -> Result<candle_nn::VarBuilder, AppError> {
         let mut tensors = std::collections::HashMap::new();
         let _zeros_data = vec![0.0f32; self.config.hidden_size];
-        let shape = vec![self.config.hidden_size as usize];
+        let shape = vec![self.config.hidden_size];
         let zeros = Tensor::zeros(shape, candle_core::DType::F32, &self.device)?;
         tensors.insert("zeros".to_string(), zeros);
         Ok(candle_nn::VarBuilder::from_tensors(tensors, DType::F32, &self.device))
@@ -70,7 +70,7 @@ impl DeepseekCoderLoader {
 
     pub async fn load_config(&self) -> Result<ModelConfig, AppError> {
         let config_path =
-            format!("models_cache/deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct/config.json");
+            "models_cache/deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct/config.json".to_string();
         let config_str = tokio::fs::read_to_string(config_path).await?;
         let config: ModelConfig = serde_json::from_str(&config_str)?;
         Ok(config)

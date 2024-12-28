@@ -20,7 +20,7 @@ locales:
 
 models:
   yi-coder:
-    hf_hub_id: "01-ai/Yi-Coder-1.5B-Chat" # Hugging Face Hub模型ID
+    hf_hub_id: "01-ai/Yi-Coder-1.5B-Chat"
     model_files:
       weights:
         - "model.safetensors"
@@ -30,7 +30,7 @@ models:
       generation_config: "generation_config.json"
 
   deepseek-coder:
-    hf_hub_id: "deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct" # Hugging Face Hub模型ID
+    hf_hub_id: "deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct"
     model_files:
       weights:
         - "model-00001-of-000004.safetensors"

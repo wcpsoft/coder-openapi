@@ -1,0 +1,5 @@
+routes:
+  v1:
+    chat: /chat
+    models: /models
+    download: /download

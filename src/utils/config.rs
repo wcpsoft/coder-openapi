@@ -21,6 +21,8 @@ pub struct ServerConfig {
     pub host: String,
     pub port: u16,
     pub shutdown_timeout: u64,
+    pub download_route: String,
+    pub model_route: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,7 +55,7 @@ pub struct AppConfig {
     pub chat: Chat,
 }
 
-static CONFIG: OnceLock<AppConfig> = OnceLock::new();
+pub static CONFIG: OnceLock<AppConfig> = OnceLock::new();
 
 pub fn get_config() -> &'static AppConfig {
     CONFIG.get_or_init(|| {

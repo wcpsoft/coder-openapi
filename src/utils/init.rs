@@ -15,7 +15,7 @@ pub async fn init() -> crate::error::Result<Arc<AppConfig>> {
     info!("使用本地化文件路径: {}, 默认语言: {}", config.locales.path, config.locales.default);
 
     // 初始化模型配置
-    for (model_id, _) in &config.models {
+    for model_id in config.models.keys() {
         info!("已初始化模型配置: {}", model_id);
     }
 
