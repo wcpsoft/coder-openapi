@@ -18,18 +18,25 @@ async fn main() -> std::io::Result<()> {
     let mut locales = Locales::new(&config.locales.path.clone()).expect("加载本地化文件失败");
     locales.set_default(&config.locales.default.clone()).expect("设置默认语言失败");
     let locales = Arc::new(locales);
+    let server_config = config.clone();
+    let host = server_config.server.host.clone();
+    let port = server_config.server.port.clone();
+    let shutdown_timeout = server_config.server.shutdown_timeout;
 
     // 创建带有优雅关闭功能的服务器
+    let app_data = web::Data::new(locales.clone());
+
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(locales.clone()))
+            .app_data(web::Data::new(server_config.clone()))
+            .app_data(app_data.clone())
             .app_data(web::PayloadConfig::new(32768 * 1024)) // 32MB payload limit
             .wrap(coder_openapi::middleware::error_handler::error_handler())
             .configure(routes::route::configure)
     })
     .client_request_timeout(std::time::Duration::from_secs(30)) // 客户端请求超时30秒
-    .bind((config.server.host.clone(), config.server.port))?
-    .shutdown_timeout(30) // 优雅关闭等待时间30秒
+    .bind((host, port))?
+    .shutdown_timeout(shutdown_timeout) // 优雅关闭等待时间
     .run()
     .await
 }

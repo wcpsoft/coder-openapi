@@ -15,6 +15,8 @@ pub enum LocaleError {
     ParseError(String),
     #[error("Locale not found: {0}")]
     LocaleNotFound(String),
+    #[error("Locale data not found")]
+    NotFound,
 }
 
 impl From<std::io::Error> for LocaleError {

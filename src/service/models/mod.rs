@@ -12,7 +12,7 @@
 //! #[tokio::main]
 //! async fn main() {
 //!     let manager = ModelManager::new();
-//!     manager.download_model("yi-coder").await.unwrap();
+//!     manager.download_model("yi-coder", "config/app.yml").await.unwrap();
 //! }
 //! ```
 

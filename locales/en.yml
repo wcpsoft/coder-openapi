@@ -36,3 +36,8 @@ responses:
 download:
   request: "Received download request: {}"
   success: "Successfully downloaded model: {}"
+
+logs:
+  handling_request: "Handling request"
+  no_headers_warning: "Request has no headers - proceeding anyway as this is technically valid"
+  empty_path_warning: "Request path is empty - proceeding with root path handling"

@@ -7,12 +7,24 @@ use std::pin::Pin;
 /// 身份验证中间件
 ///
 /// # 示例
-/// ```
-/// use actix_web::App;
+/// ```rust
+/// use actix_web::{web, App, HttpServer};
 /// use coder_openapi::middleware::Authentication;
+/// use coder_openapi::routes::config;
 ///
-/// App::new()
-///     .wrap(Authentication);
+/// #[actix_web::main]
+/// async fn main() -> std::io::Result<()> {
+///     std::env::set_var("API_KEY", "test-api-key");
+///     
+///     HttpServer::new(|| {
+///         App::new()
+///             .wrap(Authentication)
+///             .configure(config)
+///     })
+///     .bind(("127.0.0.1", 8080))?
+///     .run()
+///     .await
+/// }
 /// ```
 pub struct Authentication;
 
@@ -63,16 +75,26 @@ where
             .and_then(|s| s.strip_prefix("Bearer "));
 
         // Validate API key
-        match api_key {
-            Some(key) if key == std::env::var("API_KEY").unwrap_or_default() => {
+        match (api_key, std::env::var("API_KEY")) {
+            (Some(key), Ok(env_key)) if key == env_key => {
                 let fut = self.service.call(req);
                 Box::pin(async move {
                     let res = fut.await?;
                     Ok(res)
                 })
             }
+            (None, _) => {
+                // Missing API key
+                Box::pin(async move { Err(actix_web::error::ErrorUnauthorized("Missing API key")) })
+            }
+            (_, Err(_)) => {
+                // API key not configured
+                Box::pin(async move {
+                    Err(actix_web::error::ErrorInternalServerError("Server configuration error"))
+                })
+            }
             _ => {
-                // Return 401 Unauthorized for invalid/missing API key
+                // Invalid API key
                 Box::pin(async move { Err(actix_web::error::ErrorUnauthorized("Invalid API key")) })
             }
         }

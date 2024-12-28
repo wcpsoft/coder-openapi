@@ -2,6 +2,7 @@ server:
   host: 0.0.0.0
   port: 8080
   workers: 10
+  shutdown_timeout: 30
 
 models_cache_dir: "models_cache"
 
@@ -15,7 +16,7 @@ chat:
 
 locales:
   path: "locales"
-  default: "zh"
+  default: "en"
 
 models:
   yi-coder:

@@ -3,7 +3,7 @@ use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     error::ResponseError,
     http::{header::ContentType, StatusCode},
-    Error, HttpResponse,
+    web, Error, HttpResponse,
 };
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, future::Future, pin::Pin};
@@ -191,7 +191,9 @@ where
     }
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        let req_parts = req.parts().0.clone();
+        let (req_parts, _payload) = req.parts();
+        let req_parts = req_parts.clone();
+
         match self
             .service
             .poll_ready(&mut core::task::Context::from_waker(futures::task::noop_waker_ref()))
@@ -199,43 +201,66 @@ where
             core::task::Poll::Ready(Ok(())) => {
                 log::debug!("Service ready to handle request");
             }
-            core::task::Poll::Ready(Err(_err)) => {
+            core::task::Poll::Ready(Err(err)) => {
                 let msg = format!(
                     "Service unavailable: {} {} {}",
-                    _err.to_string(),
-                    req_parts.uri().to_string(),
-                    req_parts.method().to_string()
+                    err,
+                    req_parts.uri(),
+                    req_parts.method()
                 );
                 log::error!("{}", msg);
                 let response = ErrorResponse::from_error(&AppError::ServiceUnavailable);
-                let http_response =
-                    HttpResponse::build(StatusCode::SERVICE_UNAVAILABLE).json(response);
+                let http_response = HttpResponse::ServiceUnavailable().json(response);
                 return Box::pin(async move {
                     Ok(ServiceResponse::new(req_parts, http_response.map_into_boxed_body()))
                 });
             }
             core::task::Poll::Pending => {
-                let msg = format!(
-                    "Service not ready: {} {}",
-                    req_parts.uri().to_string(),
-                    req_parts.method().to_string()
-                );
+                let msg = format!("Service not ready: {} {}", req_parts.uri(), req_parts.method());
                 log::warn!("{}", msg);
                 let response = ErrorResponse::from_error(&AppError::ServiceUnavailable);
-                let http_response =
-                    HttpResponse::build(StatusCode::SERVICE_UNAVAILABLE).json(response);
+                let http_response = HttpResponse::ServiceUnavailable().json(response);
                 return Box::pin(async move {
                     Ok(ServiceResponse::new(req_parts, http_response.map_into_boxed_body()))
                 });
             }
         }
 
+        // Get locales from app data
+        let locales = match req.app_data::<web::Data<Locales>>() {
+            Some(locales) => locales,
+            None => {
+                log::error!("Failed to get locales from app data");
+                let response = ErrorResponse::from_error(&AppError::Locale(LocaleError::NotFound));
+                let http_response = HttpResponse::InternalServerError().json(response);
+                return Box::pin(async move {
+                    Ok(ServiceResponse::new(req_parts, http_response.map_into_boxed_body()))
+                });
+            }
+        };
+
+        // Log request details for debugging
+        log::debug!(
+            "{}: method={}, uri={}, headers={:?}",
+            locales.t("logs.handling_request"),
+            req_parts.method(),
+            req_parts.uri(),
+            req_parts.headers()
+        );
+
+        // Log potential issues (these are warnings, not errors)
+        if req_parts.headers().is_empty() {
+            log::warn!("{}", locales.t("logs.no_headers_warning"));
+        }
+        if req_parts.uri().path().is_empty() {
+            log::warn!("{}", locales.t("logs.empty_path_warning"));
+        }
+
+        // 继续处理请求
         let fut = self.service.call(req);
 
         Box::pin(async move {
-            let result = fut.await;
-
-            match result {
+            match fut.await {
                 Ok(res) => Ok(res.map_into_boxed_body()),
                 Err(err) => {
                     let app_error: AppError = match err.try_into() {
@@ -243,9 +268,9 @@ where
                         Err(conv_err) => {
                             let msg = format!(
                                 "Error conversion failed: {} {} {}",
-                                conv_err.to_string(),
-                                req_parts.uri().to_string(),
-                                req_parts.method().to_string()
+                                conv_err,
+                                req_parts.uri(),
+                                req_parts.method()
                             );
                             log::error!("{}", msg);
                             AppError::Generic("Internal server error".to_string())
@@ -253,24 +278,8 @@ where
                     };
 
                     let response = ErrorResponse::from_error(&app_error);
-
-                    let msg = format!(
-                        "Error occurred: {} {} {} {}",
-                        req_parts.uri().to_string(),
-                        req_parts.method().to_string(),
-                        app_error.to_string(),
-                        response.to_string()
-                    );
-                    log::error!("{}", msg);
-
-                    let status_code = match StatusCode::from_u16(response.code as u16) {
-                        Ok(code) => code,
-                        Err(_) => {
-                            let msg = format!("Invalid status code: {}", response.code.to_string());
-                            log::error!("{}", msg);
-                            StatusCode::INTERNAL_SERVER_ERROR
-                        }
-                    };
+                    let status_code = StatusCode::from_u16(response.code as u16)
+                        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
 
                     let http_response = HttpResponse::build(status_code).json(response);
                     Ok(ServiceResponse::new(req_parts, http_response.map_into_boxed_body()))
