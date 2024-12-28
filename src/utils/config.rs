@@ -3,6 +3,23 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 #[derive(Debug, Deserialize)]
+pub struct RouteConfig {
+    pub routes: RoutePaths,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RoutePaths {
+    pub v1: V1Routes,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct V1Routes {
+    pub chat: String,
+    pub models: String,
+    pub download: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Chat {
     pub defaults: ChatDefaults,
 }
@@ -21,8 +38,6 @@ pub struct ServerConfig {
     pub host: String,
     pub port: u16,
     pub shutdown_timeout: u64,
-    pub download_route: String,
-    pub model_route: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,6 +76,12 @@ pub fn get_config() -> &'static AppConfig {
     CONFIG.get_or_init(|| {
         AppConfig::load("config/app.yml").expect("Failed to load application configuration")
     })
+}
+
+pub fn load_route_config() -> RouteConfig {
+    let config_file =
+        std::fs::File::open("config/route.yml").expect("Failed to open route configuration file");
+    serde_yaml::from_reader(config_file).expect("Failed to parse route configuration")
 }
 
 impl AppConfig {

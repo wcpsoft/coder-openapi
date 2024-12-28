@@ -1,4 +1,5 @@
 use actix_web::{web, App, HttpServer};
+rust_i18n::i18n!("locales");
 use anyhow::Context;
 use coder_openapi::routes;
 use coder_openapi::set_locale;

@@ -24,6 +24,7 @@ impl DeepseekCoder {
     /// 返回 Result<Self, AppError>
     pub async fn new() -> Result<Self, AppError> {
         // 从配置文件加载模型配置
+        log::debug!("Loading model configuration from config/deepseek_coder.json");
         let config = ModelConfig::from_file("config/deepseek_coder.json")?;
         // 初始化模型加载器
         let loader = DeepseekCoderLoader::new(config.clone());
@@ -54,6 +55,7 @@ impl DeepseekCoder {
         params: ChatCompletionParams,
     ) -> Result<Vec<ChatCompletionMessage>, AppError> {
         // 1. 使用tokenizer将输入消息转换为token序列
+        log::debug!("Initializing tokenizer for Deepseek Coder model");
         let tokenizer = self._loader.get_tokenizer().await?;
         let mut input_ids: Vec<u32> = Vec::with_capacity(1024);
         for message in &messages {

@@ -7,6 +7,7 @@ use crate::error::AppError;
 use crate::service::chat::chat_completion::ChatCompletionParams;
 use candle_core::{DType, Tensor};
 use rand::distributions::{Distribution, WeightedIndex};
+use rust_i18n::t;
 
 fn softmax(tensor: &Tensor, dim: usize) -> Result<Tensor, candle_core::Error> {
     let max = tensor.max_keepdim(dim)?;
@@ -25,6 +26,7 @@ pub struct YiCoder {
 
 impl YiCoder {
     pub async fn new() -> Result<Self, AppError> {
+        log::debug!("{}", t!("logs.handling_request"));
         let generation_config =
             ModelConfig::from_file("models_cache/01-ai/Yi-Coder-1.5B-Chat/generation_config.json")?;
         let loader = ModelLoader::new("yi-coder", "config/app.yml").await?;
@@ -48,6 +50,7 @@ impl YiCoder {
         let _top_p = params.top_p.unwrap_or(self.generation_config.top_p);
         let _max_tokens = params.max_tokens.unwrap_or(self.generation_config.max_tokens);
 
+        log::debug!("{}", t!("logs.handling_request"));
         let tokenizer = self._loader.get_tokenizer().await?;
         let mut input_ids = Vec::new();
         for message in &messages {
@@ -106,8 +109,9 @@ impl YiCoder {
                 // Send partial response
                 let message =
                     ChatCompletionMessage { role: "assistant".to_string(), content: token_text };
+                log::debug!("{}", t!("logs.chat_request_received"));
                 if let Err(e) = self._inference.send_stream_response(&message) {
-                    log::warn!("Failed to send stream response: {}", e);
+                    log::warn!("{} {}", t!("errors.stream_response.failed"), e);
                     break;
                 }
 

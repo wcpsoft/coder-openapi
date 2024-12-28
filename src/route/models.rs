@@ -1,10 +1,8 @@
 use crate::controller::models::routes;
-use crate::utils::config::CONFIG;
+use crate::utils::config::load_route_config;
 use actix_web::web;
 
 pub fn models_routes(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope(&CONFIG.get().expect("Failed to get config").server.model_route)
-            .configure(routes),
-    );
+    let route_config = load_route_config();
+    cfg.service(web::scope(&route_config.routes.v1.models).configure(routes));
 }

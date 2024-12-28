@@ -48,3 +48,12 @@ download:
 
 init:
   failed: "初始化应用程序失败"
+
+logs:
+  handling_request: "处理请求中"
+  no_headers_warning: "请求没有headers - 继续处理，因为这在技术上是有效的"
+  empty_path_warning: "请求路径为空 - 继续处理根路径"
+  chat_request_received: "收到聊天完成请求"
+  empty_model_warning: "请求中的model字段为空"
+  empty_messages_warning: "请求中的messages字段为空"
+  request_validation_passed: "请求验证通过"

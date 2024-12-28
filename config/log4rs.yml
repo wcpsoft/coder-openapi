@@ -5,9 +5,6 @@ appenders:
     kind: console
     encoder:
       pattern: "{d(%Y-%m-%d %H:%M:%S)} {T} {M} {l} - {m}{n}"
-    filters:
-      - kind: threshold
-        level: info
 
   file:
     kind: rolling_file
@@ -27,7 +24,7 @@ appenders:
         base: 1
 
 root:
-  level: info
+  level: debug
   appenders:
     - stdout
     - file
