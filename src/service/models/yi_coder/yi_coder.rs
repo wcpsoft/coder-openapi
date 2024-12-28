@@ -59,7 +59,7 @@ impl YiCoder {
         }
 
         let input_tensor = Tensor::new(&input_ids[..], &self._transformer.device())?;
-        let logits = self._transformer.forward(&input_tensor)?;
+        let mut logits = self._transformer.forward(&input_tensor)?;
 
         let next_token = if let Some(temp) = temperature {
             let logits = logits.squeeze(0)?;
@@ -79,7 +79,52 @@ impl YiCoder {
         let output_text = tokenizer.decode(&[next_token], true)?;
 
         if stream.unwrap_or(false) {
-            // TODO: Implement streaming logic
+            let mut stream_output = String::new();
+            let mut generated_tokens = 0;
+            let max_tokens = max_tokens.unwrap_or(self.generation_config.max_tokens);
+            let mut input_ids = input_ids;
+
+            while generated_tokens < max_tokens {
+                // Generate next token
+                let next_token = if let Some(temp) = temperature {
+                    let logits = logits.squeeze(0)?;
+                    let scaled_logits = logits
+                        .to_dtype(DType::F64)?
+                        .broadcast_div(&Tensor::new(temp, &self._transformer.device())?)?;
+                    let probs = softmax(&scaled_logits, 0)?.to_dtype(DType::F32)?;
+
+                    let probs_vec: Vec<f32> = probs.to_vec1()?;
+                    let dist = WeightedIndex::new(&probs_vec)
+                        .map_err(|e| AppError::new(format!("WeightedIndex error: {}", e)))?;
+                    dist.sample(&mut rand::thread_rng()) as u32
+                } else {
+                    logits.argmax(1)?.to_scalar::<u32>()?
+                };
+
+                // Decode token and add to output
+                let token_text = tokenizer.decode(&[next_token], true)?;
+                stream_output.push_str(&token_text);
+                generated_tokens += 1;
+
+                // Send partial response
+                let message =
+                    ChatCompletionMessage { role: "assistant".to_string(), content: token_text };
+                if let Err(e) = self._inference.send_stream_response(&message) {
+                    log::warn!("Failed to send stream response: {}", e);
+                    break;
+                }
+
+                // Update input sequence
+                input_ids.push(next_token);
+                let input_tensor = Tensor::from_slice(
+                    &input_ids,
+                    (input_ids.len(),),
+                    &self._transformer.device(),
+                )?;
+                logits = self._transformer.forward(&input_tensor)?;
+            }
+
+            return Ok(vec![]);
         }
 
         Ok(vec![ChatCompletionMessage { role: "assistant".to_string(), content: output_text }])
