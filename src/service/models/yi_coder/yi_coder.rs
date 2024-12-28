@@ -26,7 +26,7 @@ impl YiCoder {
     pub async fn new() -> Result<Self, AppError> {
         let generation_config =
             ModelConfig::from_file("models_cache/01-ai/Yi-Coder-1.5B-Chat/generation_config.json")?;
-        let loader = ModelLoader::new("yi_coder", "config/app.yml").await?;
+        let loader = ModelLoader::new("yi-coder", "config/app.yml").await?;
         let transformer = YiCoderTransformer::new(&generation_config, loader.get_var_builder()?);
         let inference = YiCoderInference::new(&generation_config);
 

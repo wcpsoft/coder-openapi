@@ -11,6 +11,14 @@ pub enum MiddlewareError {
 
 #[derive(Debug, Error)]
 pub enum AppError {
+    #[error("Validation error: {0}")]
+    ValidationError(String),
+    #[error("Resource not found")]
+    NotFound,
+    #[error("Unauthorized access")]
+    Unauthorized,
+    #[error("Forbidden access")]
+    Forbidden,
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
     #[error("Anyhow error: {0}")]
@@ -51,7 +59,69 @@ impl From<serde_json::Error> for AppError {
     }
 }
 
-impl ResponseError for AppError {}
+#[derive(serde::Serialize)]
+pub struct ErrorResponse {
+    pub code: u32,
+    pub status: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
+}
+
+impl From<actix_web::Error> for AppError {
+    fn from(err: actix_web::Error) -> Self {
+        AppError::Generic(err.to_string())
+    }
+}
+
+impl ResponseError for AppError {
+    fn status_code(&self) -> actix_web::http::StatusCode {
+        match self {
+            AppError::Io(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::Anyhow(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::Model(_) => actix_web::http::StatusCode::BAD_REQUEST,
+            AppError::Candle(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::Chat(_) => actix_web::http::StatusCode::BAD_REQUEST,
+            AppError::SafeTensor(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::InvalidModel(_) => actix_web::http::StatusCode::BAD_REQUEST,
+            AppError::ConfigError(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::TokenizerError(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::ValidationError(_) => actix_web::http::StatusCode::BAD_REQUEST,
+            AppError::NotFound => actix_web::http::StatusCode::NOT_FOUND,
+            AppError::Unauthorized => actix_web::http::StatusCode::UNAUTHORIZED,
+            AppError::Forbidden => actix_web::http::StatusCode::FORBIDDEN,
+            AppError::Generic(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+
+    fn error_response(&self) -> actix_web::HttpResponse {
+        let (code, status) = match self {
+            AppError::Io(_) => (500, "Internal Server Error"),
+            AppError::Anyhow(_) => (500, "Internal Server Error"),
+            AppError::Model(_) => (400, "Bad Request"),
+            AppError::Candle(_) => (500, "Internal Server Error"),
+            AppError::Chat(_) => (400, "Bad Request"),
+            AppError::SafeTensor(_) => (500, "Internal Server Error"),
+            AppError::InvalidModel(_) => (400, "Bad Request"),
+            AppError::ConfigError(_) => (500, "Internal Server Error"),
+            AppError::TokenizerError(_) => (500, "Internal Server Error"),
+            AppError::ValidationError(_) => (400, "Bad Request"),
+            AppError::NotFound => (404, "Not Found"),
+            AppError::Unauthorized => (401, "Unauthorized"),
+            AppError::Forbidden => (403, "Forbidden"),
+            AppError::Generic(_) => (500, "Internal Server Error"),
+        };
+
+        let response = ErrorResponse {
+            code: code as u32,
+            status: status.to_string(),
+            message: self.to_string(),
+            data: None,
+        };
+
+        actix_web::HttpResponse::build(self.status_code()).json(response)
+    }
+}
 
 impl From<AppError> for std::io::Error {
     fn from(err: AppError) -> std::io::Error {

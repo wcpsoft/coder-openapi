@@ -20,8 +20,13 @@ async fn main() -> std::io::Result<()> {
     let locales = Arc::new(locales);
 
     HttpServer::new(move || {
-        App::new().app_data(web::Data::new(locales.clone())).configure(routes::route::configure)
+        App::new()
+            .app_data(web::Data::new(locales.clone()))
+            .app_data(web::PayloadConfig::new(32768 * 1024))
+            .wrap(coder_openapi::middleware::error_handler::error_handler())
+            .configure(routes::route::configure)
     })
+    .client_request_timeout(std::time::Duration::from_secs(30))
     .bind((config.server.host.clone(), config.server.port))?
     .run()
     .await

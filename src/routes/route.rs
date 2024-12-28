@@ -3,10 +3,16 @@ use actix_web::web;
 use std::sync::Arc;
 
 pub fn chat_routes() -> actix_web::Scope {
-    web::scope("/chat").route(
-        "",
-        web::get().to(|locales: web::Data<Arc<Locales>>| async move { locales.t("routes.chat") }),
-    )
+    web::scope("/chat")
+        .route(
+            "",
+            web::get()
+                .to(|locales: web::Data<Arc<Locales>>| async move { locales.t("routes.chat") }),
+        )
+        .route(
+            "/completions",
+            web::post().to(crate::controller::chat::chat_completion::chat_completion),
+        )
 }
 
 pub fn model_routes() -> actix_web::Scope {
