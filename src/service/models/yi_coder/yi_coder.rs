@@ -42,7 +42,15 @@ fn softmax(tensor: &Tensor, dim: usize) -> Result<Tensor, candle_core::Error> {
     // Subtract max for numerical stability
     let max = tensor.max_keepdim(dim)?;
     log::debug!("Max tensor shape: {:?}", max.shape());
-    log::debug!("Max tensor value: {:?}", max.to_scalar::<f64>()?);
+
+    // Safely convert max tensor to scalar
+    let max = max.squeeze(0)?; // Remove the extra dimension
+    let max_value = if max.dtype() == DType::F64 {
+        max.to_scalar::<f64>()?
+    } else {
+        max.to_dtype(DType::F64)?.to_scalar::<f64>()?
+    };
+    log::debug!("Max tensor value: {:?}", max_value);
 
     // Ensure proper broadcasting by reshaping max to match tensor dimensions
     let max = max.broadcast_as(tensor.shape())?;
@@ -105,8 +113,9 @@ fn softmax(tensor: &Tensor, dim: usize) -> Result<Tensor, candle_core::Error> {
         )));
     }
 
-    // Simple normalization by dividing by sum
+    // Normalization with proper broadcasting
     let sum = result.sum_keepdim(0)?;
+    let sum = sum.broadcast_as(result.shape())?;
     let normalized = result.div(&sum)?;
 
     // Final validation
@@ -121,7 +130,7 @@ fn softmax(tensor: &Tensor, dim: usize) -> Result<Tensor, candle_core::Error> {
 }
 
 pub struct YiCoder {
-    generation_config: ModelConfig,
+    generation_config: Box<ModelConfig>,
     _loader: ModelLoader,
     _transformer: YiCoderTransformer,
     _inference: YiCoderInference,
@@ -134,7 +143,7 @@ impl YiCoder {
         let model_config = loader.get_model_config("yi-coder")?;
         let model_dir = format!("{}/{}", "models_cache", model_config.hf_hub_id);
         let config_path = format!("{}/{}", model_dir, "config.json");
-        let generation_config = ModelConfig::from_file(config_path)?;
+        let generation_config = Box::new(ModelConfig::from_file(config_path)?);
         log::debug!("完成generation_config");
         let loader = ModelLoader::new("yi-coder", "config/app.yml").await?;
         log::debug!("完成loader");
