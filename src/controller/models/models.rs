@@ -7,7 +7,7 @@ use log::{debug, info};
 use serde::Deserialize;
 use serde_json::json;
 
-#[get("/models")]
+#[get("")]
 pub async fn list_models(manager: web::Data<ModelManager>) -> HttpResponse {
     debug!("{}", t!("logs.handling_request"));
     let status = manager.get_all_model_status().await;
@@ -61,5 +61,5 @@ struct DownloadRequest {
 }
 
 pub fn routes(cfg: &mut actix_web::web::ServiceConfig) {
-    cfg.service(web::scope("").service(list_models).service(download_model));
+    cfg.service(list_models).service(download_model);
 }

@@ -25,6 +25,8 @@ pub struct ModelConfig {
     pub num_layers: usize,
     #[serde(default)]
     pub layer_norm_eps: f64,
+    #[serde(default)]
+    pub vocab_size: usize,
 }
 
 impl ModelConfig {

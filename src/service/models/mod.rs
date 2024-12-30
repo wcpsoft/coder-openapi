@@ -83,6 +83,7 @@ impl ModelManager {
             "config.json",
             "tokenizer.model",
             "tokenizer_config.json",
+            "tokenizer.json",
             "generation_config.json",
         ];
         let yi_coder_any_exists = yi_coder_files

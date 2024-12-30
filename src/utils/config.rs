@@ -46,7 +46,7 @@ pub struct LocalesConfig {
     pub default: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ModelConfig {
     pub hf_hub_id: String,
     pub model_files: ModelFiles,
@@ -59,6 +59,18 @@ pub struct ModelFiles {
     pub tokenizer: String,
     pub tokenizer_config: String,
     pub generation_config: String,
+}
+
+impl Clone for ModelFiles {
+    fn clone(&self) -> Self {
+        Self {
+            weights: self.weights.clone(),
+            config: self.config.clone(),
+            tokenizer: self.tokenizer.clone(),
+            tokenizer_config: self.tokenizer_config.clone(),
+            generation_config: self.generation_config.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,9 +103,10 @@ impl AppConfig {
         Ok(config)
     }
 
-    pub fn get_model_config(&self, model_id: &str) -> anyhow::Result<&ModelConfig> {
+    pub fn get_model_config(&self, model_id: &str) -> anyhow::Result<ModelConfig> {
         self.models
             .get(model_id)
+            .cloned()
             .ok_or_else(|| anyhow::anyhow!("Model config not found for {}", model_id))
     }
 }

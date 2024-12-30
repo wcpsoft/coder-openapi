@@ -31,7 +31,6 @@ impl ChatCompletionService {
         messages: Vec<ChatCompletionMessage>,
         params: ChatCompletionParams,
     ) -> Result<Vec<ChatCompletionMessage>, AppError> {
-        // TODO: Implement actual model selection and inference
         match model {
             "deepseek-coder" => {
                 let model = DeepseekCoder::new().await?;

@@ -41,7 +41,8 @@ pub struct Usage {
 }
 
 pub async fn chat_completion(req: web::Json<ChatCompletionRequest>) -> HttpResponse {
-    log::info!("Received chat completion request");
+    log::info!("Received chat completion request for model: {}", req.model);
+    log::debug!("Request details: {:?}", req);
 
     // Validate required fields
     if req.model.is_empty() {
@@ -67,8 +68,11 @@ pub async fn chat_completion(req: web::Json<ChatCompletionRequest>) -> HttpRespo
         stream: req.stream.or(Some(chat_config.defaults.stream)),
     };
 
+    log::debug!("Using completion parameters: {:?}", params);
+
     match service.complete(&req.model, req.messages.clone(), params).await {
         Ok(messages) => {
+            log::info!("Successfully completed chat request for model: {}", req.model);
             let response = ChatCompletionResponse {
                 id: Uuid::new_v4().to_string(),
                 object: "chat.completion".to_string(),
@@ -82,6 +86,9 @@ pub async fn chat_completion(req: web::Json<ChatCompletionRequest>) -> HttpRespo
             };
             HttpResponse::Ok().json(response)
         }
-        Err(e) => HttpResponse::InternalServerError().json(e.to_string()),
+        Err(e) => {
+            log::error!("Error completing chat request: {}", e);
+            HttpResponse::InternalServerError().json(e.to_string())
+        }
     }
 }
