@@ -41,8 +41,12 @@ pub struct Usage {
 }
 
 pub async fn chat_completion(req: web::Json<ChatCompletionRequest>) -> HttpResponse {
-    log::info!("Received chat completion request for model: {}", req.model);
-    log::debug!("Request details: {:?}", req);
+    let request_id = Uuid::new_v4();
+    let start_time = Utc::now();
+
+    log::info!("[{}] Received chat completion request for model: {}", request_id, req.model);
+    log::debug!("[{}] Request details: {:?}", request_id, req);
+    log::debug!("[{}] Request received at: {}", request_id, start_time);
 
     // Validate required fields
     if req.model.is_empty() {
@@ -54,7 +58,7 @@ pub async fn chat_completion(req: web::Json<ChatCompletionRequest>) -> HttpRespo
         return HttpResponse::BadRequest().json("messages field cannot be empty");
     }
 
-    log::debug!("Request validation passed");
+    log::debug!("[{}] Request validation passed", request_id);
 
     let service = ChatCompletionService::new();
     let config = get_config();
@@ -68,11 +72,18 @@ pub async fn chat_completion(req: web::Json<ChatCompletionRequest>) -> HttpRespo
         stream: req.stream.or(Some(chat_config.defaults.stream)),
     };
 
-    log::debug!("Using completion parameters: {:?}", params);
+    log::debug!("[{}] Using completion parameters: {:?}", request_id, params);
 
     match service.complete(&req.model, req.messages.clone(), params).await {
         Ok(messages) => {
-            log::info!("Successfully completed chat request for model: {}", req.model);
+            let end_time = Utc::now();
+            let duration = end_time - start_time;
+            log::info!(
+                "[{}] Successfully completed chat request for model: {} in {}ms",
+                request_id,
+                req.model,
+                duration.num_milliseconds()
+            );
             let response = ChatCompletionResponse {
                 id: Uuid::new_v4().to_string(),
                 object: "chat.completion".to_string(),
@@ -84,10 +95,18 @@ pub async fn chat_completion(req: web::Json<ChatCompletionRequest>) -> HttpRespo
                     .collect(),
                 usage: Usage { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
             };
+            log::debug!("[{}] Response details: {:?}", request_id, response);
             HttpResponse::Ok().json(response)
         }
         Err(e) => {
-            log::error!("Error completing chat request: {}", e);
+            let end_time = Utc::now();
+            let duration = end_time - start_time;
+            log::error!(
+                "[{}] Error completing chat request after {}ms: {}",
+                request_id,
+                duration.num_milliseconds(),
+                e
+            );
             HttpResponse::InternalServerError().json(e.to_string())
         }
     }

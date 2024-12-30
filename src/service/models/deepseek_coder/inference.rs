@@ -8,22 +8,32 @@ pub struct DeepSeekCoderInference {
 
 impl DeepSeekCoderInference {
     pub fn new(_config: &super::config::ModelConfig) -> Self {
-        Self { _device: Device::cuda_if_available(0).unwrap_or(Device::Cpu) }
+        let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
+        log::info!("Initializing Deepseek Coder with device: {:?}", device);
+        Self { _device: device }
     }
 
     pub async fn infer(
         &self,
-        _messages: Vec<ChatCompletionMessage>,
-        _temperature: Option<f32>,
-        _top_p: Option<f32>,
-        _n: Option<usize>,
-        _max_tokens: Option<usize>,
-        _stream: Option<bool>,
+        messages: Vec<ChatCompletionMessage>,
+        temperature: Option<f32>,
+        top_p: Option<f32>,
+        n: Option<usize>,
+        max_tokens: Option<usize>,
+        stream: Option<bool>,
     ) -> Result<Vec<ChatCompletionMessage>, AppError> {
+        log::debug!("Starting Deepseek Coder inference");
+        log::debug!("Input messages count: {}", messages.len());
+        log::debug!("Inference parameters - temperature: {:?}, top_p: {:?}, n: {:?}, max_tokens: {:?}, stream: {:?}",
+            temperature, top_p, n, max_tokens, stream);
+
         // TODO: Implement actual inference logic
-        Ok(vec![ChatCompletionMessage {
+        let response = ChatCompletionMessage {
             role: "assistant".to_string(),
             content: "DeepSeek Coder response".to_string(),
-        }])
+        };
+
+        log::debug!("Generated response: {:?}", response);
+        Ok(vec![response])
     }
 }

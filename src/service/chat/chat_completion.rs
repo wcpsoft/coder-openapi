@@ -31,16 +31,34 @@ impl ChatCompletionService {
         messages: Vec<ChatCompletionMessage>,
         params: ChatCompletionParams,
     ) -> Result<Vec<ChatCompletionMessage>, AppError> {
-        match model {
+        log::debug!("Starting completion for model: {}", model);
+        log::debug!("Input messages count: {}", messages.len());
+        log::debug!("Completion params: {:?}", params);
+
+        let result = match model {
             "deepseek-coder" => {
+                log::info!("Initializing Deepseek Coder model");
                 let model = DeepseekCoder::new().await?;
+                log::info!("Starting Deepseek Coder inference");
                 model.infer(messages, params).await
             }
             "yi-coder" => {
+                log::info!("Initializing Yi Coder model");
                 let model = YiCoder::new().await?;
+                log::info!("Starting Yi Coder inference");
                 model.infer(messages, params).await
             }
-            _ => Err(AppError::InvalidModel(model.to_string())),
+            _ => {
+                log::error!("Invalid model requested: {}", model);
+                Err(AppError::InvalidModel(model.to_string()))
+            }
+        };
+
+        match &result {
+            Ok(messages) => log::debug!("Successfully generated {} messages", messages.len()),
+            Err(e) => log::error!("Error during completion: {}", e),
         }
+
+        result
     }
 }
