@@ -186,8 +186,10 @@ impl YiCoder {
             );
             let encoding = tokenizer.encode(message.content.clone(), true)?;
             input_ids.extend(encoding.get_ids().to_vec());
+            log::debug!("encoding tokens: {:?}", encoding);
             log::debug!("Encoded tokens count: {}", encoding.len());
         }
+        log::debug!("input_ids tokens: {:?}", input_ids);
         log::debug!("Total input tokens: {}", input_ids.len());
 
         // Create input tensor with batch dimension, keep original BF16 type
