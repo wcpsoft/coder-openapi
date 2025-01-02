@@ -4,7 +4,6 @@ use crate::service::models::deepseek_coder::{
     config::ModelConfig as DeepSeekConfig, DeepSeekCoder,
 };
 use crate::service::models::yi_coder::YiCoder;
-use crate::utils::config::ModelConfig;
 use candle_core::{DType, Device};
 use candle_nn::VarBuilder;
 use std::collections::HashMap;
