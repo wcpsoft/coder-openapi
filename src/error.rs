@@ -41,6 +41,8 @@ pub enum AppError {
     InvalidParameter(String),
     #[error("Generic error: {0}")]
     Generic(String),
+    #[error("Transformer error: {0}")]
+    Transformer(String),
 }
 
 impl AppError {
@@ -58,6 +60,16 @@ impl From<Box<dyn std::error::Error + Send + Sync>> for AppError {
 impl From<serde_json::Error> for AppError {
     fn from(err: serde_json::Error) -> Self {
         AppError::ConfigError(err.to_string())
+    }
+}
+
+impl From<crate::service::models::deepseek_coder::transformer::error::TransformerError>
+    for AppError
+{
+    fn from(
+        err: crate::service::models::deepseek_coder::transformer::error::TransformerError,
+    ) -> Self {
+        AppError::Transformer(err.to_string())
     }
 }
 
@@ -94,6 +106,7 @@ impl ResponseError for AppError {
             AppError::Unauthorized => actix_web::http::StatusCode::UNAUTHORIZED,
             AppError::Forbidden => actix_web::http::StatusCode::FORBIDDEN,
             AppError::Generic(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::Transformer(_) => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -114,6 +127,7 @@ impl ResponseError for AppError {
             AppError::Unauthorized => (401, "Unauthorized"),
             AppError::Forbidden => (403, "Forbidden"),
             AppError::Generic(_) => (500, "Internal Server Error"),
+            AppError::Transformer(_) => (500, "Internal Server Error"),
         };
 
         let response = ErrorResponse {

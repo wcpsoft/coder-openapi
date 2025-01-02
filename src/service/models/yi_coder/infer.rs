@@ -10,7 +10,7 @@ pub struct YiCoderInference {
 }
 
 impl YiCoderInference {
-    pub fn new(_config: &super::config::ModelConfig) -> Self {
+    pub fn new(_config: &crate::service::models::deepseek_coder::config::ModelConfig) -> Self {
         log::info!("Initializing Yi Coder with CPU device");
         Self { _device: Device::Cpu, sender: Arc::new(Mutex::new(None)) }
     }

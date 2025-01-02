@@ -2,7 +2,7 @@ use crate::utils::config::load_route_config;
 use actix_web::web;
 
 pub fn chat_routes() -> actix_web::Scope {
-    let config = load_route_config();
+    let config = load_route_config().expect("Failed to load route config");
     web::scope(&config.routes.v1.chat)
         .service(
             web::resource("").route(web::get().to(|| async move { "Chat API" })).name("chat_root"),
@@ -15,13 +15,13 @@ pub fn chat_routes() -> actix_web::Scope {
 }
 
 pub fn model_routes() -> actix_web::Scope {
-    let config = load_route_config();
+    let config = load_route_config().expect("Failed to load route config");
     actix_web::web::scope(&config.routes.v1.models)
         .configure(crate::controller::models::models::routes)
 }
 
 pub fn download_routes() -> actix_web::Scope {
-    let config = load_route_config();
+    let config = load_route_config().expect("Failed to load route config");
     web::scope(&config.routes.v1.download)
         .route("", web::get().to(|| async move { "Download API" }))
 }

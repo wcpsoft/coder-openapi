@@ -1,3 +1,4 @@
+use candle_core::Error as CandleError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -25,4 +26,10 @@ pub enum TransformerError {
 
     #[error("Unknown error: {0}")]
     Unknown(String),
+}
+
+impl From<CandleError> for TransformerError {
+    fn from(err: CandleError) -> Self {
+        TransformerError::TensorError(err.to_string())
+    }
 }

@@ -6,12 +6,11 @@ use crate::entities::chat_completion_message::ChatCompletionMessage;
 use crate::error::AppError;
 use crate::service::chat::chat_completion::ChatCompletionParams;
 use candle_core::Tensor;
-use candle_nn::Module;
-use rand::{thread_rng, Rng};
 
 /// DeepseekCoder 代码生成模型
 /// 基于 DeepSeek AI 的代码生成模型实现
 /// 包含配置、加载器、转换器和推理模块
+#[allow(dead_code)]
 pub struct DeepseekCoder {
     _config: ModelConfig,                   // 模型配置
     _loader: DeepseekCoderLoader,           // 模型加载器
@@ -22,11 +21,9 @@ pub struct DeepseekCoder {
 impl DeepseekCoder {
     /// 创建新的 DeepseekCoder 实例
     /// 返回 Result<Self, AppError>
-    pub async fn new() -> Result<Self, AppError> {
-        // 从配置文件加载模型配置
-        log::debug!("Loading model configuration from config/deepseek_coder.json");
-        let config = ModelConfig::from_file("config/deepseek_coder.json")?;
-        // 初始化模型加载器
+    pub fn new(config: &ModelConfig, vb: VarBuilder) -> Result<Self, TransformerError> {
+        // 使用传入的配置
+        log::debug!("Using provided model configuration");
         let loader = DeepseekCoderLoader::new(config.clone());
         // 初始化转换器
         let transformer = DeepseekCoderTransformer::new(&config, loader.get_var_builder()?)?;
@@ -49,14 +46,14 @@ impl DeepseekCoder {
     ///   - max_tokens: 最大token数
     ///   - stream: 是否流式输出
     /// 返回 Result<Vec<ChatCompletionMessage>, AppError>
-    pub async fn infer(
+    pub fn infer(
         &self,
         messages: Vec<ChatCompletionMessage>,
         params: ChatCompletionParams,
     ) -> Result<Vec<ChatCompletionMessage>, AppError> {
         // 1. 使用tokenizer将输入消息转换为token序列
         log::debug!("Initializing tokenizer for Deepseek Coder model");
-        let tokenizer = self._loader.get_tokenizer().await?;
+        let tokenizer = self._loader.get_tokenizer()?;
         let mut input_ids: Vec<u32> = Vec::with_capacity(1024);
         for message in &messages {
             let encoding = tokenizer
@@ -75,7 +72,10 @@ impl DeepseekCoder {
         // 处理输入序列，添加batch维度
         let input_tensor = input_tensor.unsqueeze(0)?;
 
-        let logits = self._transformer.forward(&input_tensor)?;
+        let logits = self
+            ._transformer
+            .forward(&input_tensor)
+            .map_err(|e| AppError::TransformerError(e.to_string()))?;
 
         // 移除batch维度
         let mut logits = logits.squeeze(0)?;
@@ -149,9 +149,11 @@ impl DeepseekCoder {
                 generated_tokens += 1;
 
                 // 发送部分响应
-                let _message =
+                let message =
                     ChatCompletionMessage { role: "assistant".to_string(), content: token_text };
-                // TODO: 实现实际的流式输出机制
+
+                // 直接打印流式响应到日志
+                log::info!("Streaming response: {}", message.content);
 
                 // 更新输入序列
                 input_ids.push(next_token);

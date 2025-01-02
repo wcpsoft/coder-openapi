@@ -74,7 +74,7 @@ pub async fn chat_completion(req: web::Json<ChatCompletionRequest>) -> HttpRespo
 
     log::debug!("[{}] Using completion parameters: {:?}", request_id, params);
 
-    match service.complete(&req.model, req.messages.clone(), params).await {
+    match service.complete(&req.model, req.messages.clone(), params) {
         Ok(messages) => {
             let end_time = Utc::now();
             let duration = end_time - start_time;

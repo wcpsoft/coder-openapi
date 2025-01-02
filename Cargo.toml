@@ -47,11 +47,6 @@ rustfmt = "0.10"
 clippy = "0.0"
 
 
-[[bench]]
-name = "benchmarks"
-path = "benches/benchmarks.rs"
-harness = false
-
 [features]
 default = []
 dev = ["cargo-tarpaulin"]

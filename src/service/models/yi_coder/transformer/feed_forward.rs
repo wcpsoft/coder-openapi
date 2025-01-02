@@ -2,20 +2,24 @@ use candle_core::{Result, Tensor};
 use candle_nn::{linear, Linear, Module, VarBuilder};
 
 fn gelu(x: &Tensor) -> Result<Tensor> {
-    // GELU approximation: x * 0.5 * (1.0 + tanh(sqrt(2.0 / PI) * (x + 0.044715 * x.powf(3.0))))
-    let sqrt_2_over_pi = Tensor::new(&[(2.0 / std::f64::consts::PI).sqrt()], x.device())?;
-    let coeff = Tensor::new(&[0.044715], x.device())?;
-    let half = Tensor::new(&[0.5], x.device())?;
-    let one = Tensor::new(&[1.0], x.device())?;
+    // Precompute constants for GELU approximation
+    const SQRT_2_OVER_PI: f64 = 0.7978845608028654; // sqrt(2.0 / PI)
+    const COEFF: f64 = 0.044715;
+    const HALF: f64 = 0.5;
 
+    // Convert constants to tensors
+    let sqrt_2_over_pi = Tensor::new(SQRT_2_OVER_PI, x.device())?;
+    let coeff = Tensor::new(COEFF, x.device())?;
+    let half = Tensor::new(HALF, x.device())?;
+    let one = Tensor::new(1.0, x.device())?;
+
+    // Compute GELU using tensor operations
     let x_cubed = x.powf(3.0)?;
     let inner = x.add(&x_cubed.mul(&coeff)?)?;
-    let tanh_arg = inner.mul(&sqrt_2_over_pi)?;
-    let tanh = tanh_arg.tanh()?;
+    let tanh = inner.mul(&sqrt_2_over_pi)?.tanh()?;
+    let result = x.mul(&half)?.mul(&tanh.add(&one)?)?;
 
-    let gelu = x.mul(&half)?.mul(&tanh.add(&one)?)?;
-
-    Ok(gelu)
+    Ok(result)
 }
 
 pub struct PositionWiseFeedForward {

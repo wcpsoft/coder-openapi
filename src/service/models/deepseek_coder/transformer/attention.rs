@@ -1,4 +1,4 @@
-use candle_core::{Device, Module, Result, Tensor};
+use candle_core::{Module, Result, Tensor};
 use candle_nn::{linear, ops::softmax, VarBuilder};
 
 /// Multi-head attention implementation
@@ -35,20 +35,19 @@ impl MultiHeadAttention {
     ) -> Result<Tensor> {
         let (batch_size, seq_len, _) = query.dims3()?;
 
-        // Linear transformations
-        let query = self.query.forward(query)?.to_dtype(candle_core::DType::F32)?;
-        let key = self.key.forward(key)?.to_dtype(candle_core::DType::F32)?;
-        let value = self.value.forward(value)?.to_dtype(candle_core::DType::F32)?;
+        // Linear transformations with optimized dtype handling
+        let query = self.query.forward(query)?;
+        let key = self.key.forward(key)?;
+        let value = self.value.forward(value)?;
 
         // Reshape for multi-head attention
         let query = query.reshape((batch_size, seq_len, self.num_heads, self.head_dim))?;
         let key = key.reshape((batch_size, seq_len, self.num_heads, self.head_dim))?;
         let value = value.reshape((batch_size, seq_len, self.num_heads, self.head_dim))?;
 
-        // Compute attention scores
-        let mut attention_scores = query.matmul(&key.t()?)?;
-        let scale_factor = Tensor::new((self.head_dim as f32).sqrt(), attention_scores.device())?;
-        attention_scores = attention_scores.broadcast_div(&scale_factor)?;
+        // Compute attention scores with optimized scaling
+        let scale = Tensor::new((self.head_dim as f64).sqrt(), query.device())?;
+        let mut attention_scores = query.matmul(&key.t()?)?.broadcast_div(&scale)?;
 
         // Apply attention mask if provided
         if let Some(mask) = attention_mask {

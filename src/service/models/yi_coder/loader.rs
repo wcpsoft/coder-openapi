@@ -1,3 +1,4 @@
+use super::transformer::YiCoderTransformer;
 use crate::error::AppError;
 use crate::utils::{config::AppConfig, download::ModelDownloader};
 use anyhow;
@@ -19,9 +20,9 @@ pub struct ModelLoader {
 }
 
 impl ModelLoader {
-    pub async fn new(model_id: &str, config_path: &str) -> anyhow::Result<Self> {
+    pub fn new(model_id: &str, config_path: &str) -> anyhow::Result<Self> {
         // 下载模型文件
-        let model_paths = ModelDownloader::download_model_files(model_id, config_path).await?;
+        let model_paths = ModelDownloader::download_model_files(model_id, config_path)?;
 
         Ok(Self {
             model_paths,
@@ -104,7 +105,7 @@ impl ModelLoader {
         Ok(VarBuilder::from_tensors(model_tensors, DType::F32, &self.device))
     }
 
-    pub async fn get_tokenizer(&self) -> anyhow::Result<Tokenizer> {
+    pub fn get_tokenizer(&self) -> anyhow::Result<Tokenizer> {
         // 查找tokenizer文件
         let tokenizer_path = self
             .model_paths
@@ -128,5 +129,25 @@ impl ModelLoader {
         log::debug!("Tokenizer loaded successfully");
 
         Ok(tokenizer)
+    }
+
+    pub fn load_transformer(&self) -> anyhow::Result<YiCoderTransformer> {
+        let vb = self.get_var_builder()?;
+        let config = self.get_model_config("yi-coder")?;
+
+        let num_layers = config
+            .num_hidden_layers
+            .ok_or_else(|| anyhow::anyhow!("num_hidden_layers not found in config"))?;
+        let hidden_size =
+            config.hidden_size.ok_or_else(|| anyhow::anyhow!("hidden_size not found in config"))?;
+        let num_attention_heads = config
+            .num_attention_heads
+            .ok_or_else(|| anyhow::anyhow!("num_attention_heads not found in config"))?;
+        let intermediate_size = config
+            .intermediate_size
+            .ok_or_else(|| anyhow::anyhow!("intermediate_size not found in config"))?;
+
+        YiCoderTransformer::new(num_layers, hidden_size, num_attention_heads, intermediate_size, vb)
+            .map_err(|e| anyhow::anyhow!("Failed to create YiCoderTransformer: {}", e))
     }
 }

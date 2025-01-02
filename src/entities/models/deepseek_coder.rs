@@ -14,7 +14,7 @@ impl DeepSeekCoderModel {
         let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
         let loader = crate::service::models::deepseek_coder::loader::ModelLoader::new(
             "deepseek-coder",
-            config_path,
+            config_path.to_string().as_str(),
         )
         .await?;
         let _tensors = loader.load()?;

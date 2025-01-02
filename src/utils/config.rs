@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -101,19 +101,25 @@ pub fn get_config() -> &'static AppConfig {
     })
 }
 
+pub fn load_route_config() -> Result<RouteConfig> {
+    let config_file = std::fs::File::open("config/route.yml")?;
+    let config: RouteConfig = serde_yaml::from_reader(config_file)?;
+    Ok(config)
+}
+
 impl AppConfig {
-    pub fn load(config_path: &str) -> anyhow::Result<Self> {
+    pub fn load(config_path: &str) -> Result<Self> {
         let config_file = std::fs::File::open(config_path)?;
         let config: Self = serde_yaml::from_reader(config_file)?;
         Ok(config)
     }
 
-    pub fn get_model_config(&self, model_id: &str) -> anyhow::Result<ModelConfig> {
+    pub fn get_model_config(&self, model_id: &str) -> Result<ModelConfig> {
         let mut config = self
             .models
             .get(model_id)
             .cloned()
-            .ok_or_else(|| anyhow::anyhow!("Model config not found for {}", model_id))?;
+            .ok_or_else(|| anyhow!("Model config not found for {}", model_id))?;
 
         // Load parameters from config.json if they're not set
         if config.hidden_size.is_none()
@@ -127,24 +133,14 @@ impl AppConfig {
             let config_file = std::fs::File::open(config_path)?;
             let model_config: serde_json::Value = serde_json::from_reader(config_file)?;
 
-            if config.hidden_size.is_none() {
-                config.hidden_size = model_config["hidden_size"].as_u64().map(|v| v as usize);
-            }
-            if config.num_attention_heads.is_none() {
-                config.num_attention_heads =
-                    model_config["num_attention_heads"].as_u64().map(|v| v as usize);
-            }
-            if config.num_hidden_layers.is_none() {
-                config.num_hidden_layers =
-                    model_config["num_hidden_layers"].as_u64().map(|v| v as usize);
-            }
-            if config.intermediate_size.is_none() {
-                config.intermediate_size =
-                    model_config["intermediate_size"].as_u64().map(|v| v as usize);
-            }
-            if config.vocab_size.is_none() {
-                config.vocab_size = model_config["vocab_size"].as_u64().map(|v| v as usize);
-            }
+            config.hidden_size = model_config["hidden_size"].as_u64().map(|v| v as usize);
+            config.num_attention_heads =
+                model_config["num_attention_heads"].as_u64().map(|v| v as usize);
+            config.num_hidden_layers =
+                model_config["num_hidden_layers"].as_u64().map(|v| v as usize);
+            config.intermediate_size =
+                model_config["intermediate_size"].as_u64().map(|v| v as usize);
+            config.vocab_size = model_config["vocab_size"].as_u64().map(|v| v as usize);
         }
 
         Ok(config)

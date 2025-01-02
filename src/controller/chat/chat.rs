@@ -1,4 +1,5 @@
-use crate::entities::models::{DeepseekCoderModel, YiCoderModel};
+use crate::entities::models::deepseek_coder::DeepSeekCoderModel;
+use crate::entities::models::YiCoderModel;
 use crate::service::chat::ChatService;
 use crate::service::models::ModelManager;
 use actix_web::{post, web, HttpResponse, ResponseError};
@@ -19,7 +20,7 @@ impl ModelResponseGenerator for YiCoderModel {
     }
 }
 
-impl ModelResponseGenerator for DeepseekCoderModel {
+impl ModelResponseGenerator for DeepSeekCoderModel {
     async fn generate_response(self, input: &str) -> anyhow::Result<String> {
         // TODO: Implement actual response generation
         Ok(format!("Deepseek-Coder response for: {}", input))

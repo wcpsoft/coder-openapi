@@ -7,6 +7,7 @@ use log::{debug, info};
 use serde::Deserialize;
 use serde_json::json;
 
+/// 获取所有模型列表
 #[get("")]
 pub async fn list_models(manager: web::Data<ModelManager>) -> HttpResponse {
     debug!("{}", t!("logs.handling_request"));
@@ -36,6 +37,7 @@ pub async fn list_models(manager: web::Data<ModelManager>) -> HttpResponse {
     HttpResponse::Ok().json(json!({ "models": response }))
 }
 
+/// 下载指定模型
 #[post("/download")]
 pub async fn download_model(
     _manager: web::Data<ModelManager>,
@@ -45,8 +47,8 @@ pub async fn download_model(
     let model_id = &req.model_id;
     let config_path = "config/app.yml";
 
-    // Initialize model loader which will download all required files
-    let _loader = ModelLoader::new(model_id, config_path).await?;
+    // 初始化模型加载器，下载所有必需文件
+    let _loader = ModelLoader::new(model_id, config_path)?;
 
     info!("{}", t!("download.success", "model_id" => model_id));
     Ok(HttpResponse::Ok().json(json!({
@@ -55,11 +57,13 @@ pub async fn download_model(
     })))
 }
 
+/// 下载请求结构体
 #[derive(Deserialize)]
 struct DownloadRequest {
     model_id: String,
 }
 
+/// 注册路由
 pub fn routes(cfg: &mut actix_web::web::ServiceConfig) {
     cfg.service(list_models).service(download_model);
 }

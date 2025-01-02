@@ -7,11 +7,57 @@ pub struct YiCoderTransformer {
     layers: Vec<TransformerLayer>,
 }
 
-pub struct TransformerLayer {
-use candle_core::{Module, Result, Tensor};
-use candle_nn::{LayerNorm, VarBuilder};
+impl YiCoderTransformer {
+    pub fn new(
+        num_layers: usize,
+        hidden_size: usize,
+        num_attention_heads: usize,
+        intermediate_size: usize,
+        vb: VarBuilder,
+    ) -> Result<Self> {
+        let mut layers = Vec::with_capacity(num_layers);
+        for i in 0..num_layers {
+            let layer = TransformerLayer::new(
+                hidden_size,
+                num_attention_heads,
+                intermediate_size,
+                vb.pp(&format!("layer_{}", i)),
+            )?;
+            layers.push(layer);
+        }
+        Ok(Self { layers })
+    }
 
-use super::{attention::MultiHeadAttention, feed_forward::PositionWiseFeedForward};
+    pub fn forward(&self, input: &Tensor) -> Result<Tensor> {
+        let mut output = input.clone();
+        for layer in &self.layers {
+            output = layer.forward(&output)?;
+        }
+        Ok(output)
+    }
+
+    pub fn process(&self, input: &str, max_tokens: usize) -> Result<String> {
+        // Convert input to tensor
+        let device = candle_core::Device::Cpu;
+        let input_tensor = Tensor::from_slice(input.as_bytes(), input.len(), &device)?;
+
+        // Process through transformer layers
+        let mut output = self.forward(&input_tensor)?;
+
+        // Generate tokens up to max_tokens
+        let mut generated = String::new();
+        for _ in 0..max_tokens {
+            // Get next token (simple implementation)
+            let next_token = output.argmax(1)?.to_scalar::<u8>()?;
+            generated.push(next_token as char);
+
+            // Update input for next iteration
+            output = self.forward(&output)?;
+        }
+
+        Ok(generated)
+    }
+}
 
 pub struct TransformerLayer {
     attention: MultiHeadAttention,

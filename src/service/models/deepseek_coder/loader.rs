@@ -1,9 +1,7 @@
 use crate::error::AppError;
 use crate::utils::{config::AppConfig, download::ModelDownloader};
-use anyhow;
 use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
-use log;
 use safetensors::SafeTensors;
 use std::path::PathBuf;
 use tokenizers::Tokenizer;
@@ -19,9 +17,9 @@ pub struct ModelLoader {
 }
 
 impl ModelLoader {
-    pub async fn new(model_id: &str, config_path: &str) -> anyhow::Result<Self> {
+    pub async fn new(_model_id: &str, config_path: &str) -> anyhow::Result<Self> {
         // Download model files
-        let model_paths = ModelDownloader::download_model_files(model_id, config_path).await?;
+        let model_paths = ModelDownloader::download_model_files(_model_id, config_path)?;
 
         Ok(Self {
             model_paths,

@@ -3,6 +3,12 @@ use std::path::Path;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ModelConfig {
+    pub hidden_size: usize,
+    pub num_attention_heads: usize,
+    pub num_hidden_layers: usize,
+    pub intermediate_size: usize,
+    pub vocab_size: usize,
+    pub num_layers: usize,
     #[serde(default)]
     pub bos_token_id: usize,
     #[serde(default)]
@@ -16,17 +22,8 @@ pub struct ModelConfig {
     #[serde(default)]
     pub max_tokens: usize,
     #[serde(default)]
-    pub hidden_size: usize,
-    #[serde(default)]
-    pub num_attention_heads: usize,
-    #[serde(default)]
-    pub intermediate_size: usize,
-    #[serde(default)]
-    pub num_layers: usize,
-    #[serde(default)]
     pub layer_norm_eps: f64,
-    #[serde(default)]
-    pub vocab_size: usize,
+    pub tokenizer_path: String,
 }
 
 impl ModelConfig {
@@ -36,3 +33,6 @@ impl ModelConfig {
         Ok(config)
     }
 }
+
+pub type DeepSeekCoderConfig = ModelConfig;
+pub type TransformerModelConfig = ModelConfig;

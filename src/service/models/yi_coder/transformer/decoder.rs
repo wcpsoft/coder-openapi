@@ -29,7 +29,7 @@ impl YiCoderDecoder {
         Ok(Self { layers, norm })
     }
 
-    pub fn forward(&self, input: &Tensor, encoder_output: Option<&Tensor>) -> Result<Tensor> {
+    pub fn forward(&self, input: &Tensor, _encoder_output: Option<&Tensor>) -> Result<Tensor> {
         let mut hidden_states = input.clone();
 
         for layer in &self.layers {

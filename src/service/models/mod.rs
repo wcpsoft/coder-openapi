@@ -19,7 +19,7 @@
 pub mod deepseek_coder;
 pub mod yi_coder;
 
-use crate::entities::models::{DeepseekCoderModel, YiCoderModel};
+use crate::entities::models::{DeepSeekCoderModel, YiCoderModel};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -43,7 +43,7 @@ pub enum ModelError {
 #[derive(Clone)]
 pub struct ModelManager {
     yi_coder: Arc<RwLock<Option<YiCoderModel>>>,
-    deepseek_coder: Arc<RwLock<Option<DeepseekCoderModel>>>,
+    deepseek_coder: Arc<RwLock<Option<DeepSeekCoderModel>>>,
     model_status: Arc<RwLock<HashMap<String, ModelStatus>>>,
 }
 
@@ -157,7 +157,7 @@ impl ModelManager {
             match model_id {
                 "yi-coder" => {
                     let mut model = self.yi_coder.write().await;
-                    *model = Some(YiCoderModel::new(config_path).await.map_err(|e| {
+                    *model = Some(YiCoderModel::new(config_path).map_err(|e| {
                         ModelError::InitializationFailed(format!("Yi-Coder: {}", e))
                     })?);
                     model_status.is_cached = true;
@@ -165,9 +165,10 @@ impl ModelManager {
                 }
                 "deepseek-coder" => {
                     let mut model = self.deepseek_coder.write().await;
-                    *model = Some(DeepseekCoderModel::new().await.map_err(|e| {
-                        ModelError::InitializationFailed(format!("Deepseek-Coder: {}", e))
-                    })?);
+                    *model =
+                        Some(DeepSeekCoderModel::new(&config_path.to_string()).await.map_err(
+                            |e| ModelError::InitializationFailed(format!("DeepSeek-Coder: {}", e)),
+                        )?);
                     model_status.is_cached = true;
                     model_status.is_enabled = true;
                 }
@@ -220,12 +221,12 @@ impl ModelManager {
         model.clone()
     }
 
-    /// 获取Deepseek-Coder模型实例
+    /// 获取DeepSeek-Coder模型实例
     ///
     /// # 返回值
-    /// * `Some(DeepseekCoderModel)` - 如果模型已加载
+    /// * `Some(DeepSeekCoderModel)` - 如果模型已加载
     /// * `None` - 如果模型未加载
-    pub async fn get_deepseek_coder(&self) -> Option<DeepseekCoderModel> {
+    pub async fn get_deepseek_coder(&self) -> Option<DeepSeekCoderModel> {
         let model = self.deepseek_coder.read().await;
         model.clone()
     }

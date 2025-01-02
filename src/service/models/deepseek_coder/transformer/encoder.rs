@@ -1,6 +1,6 @@
-use crate::service::models::deepseek_coder::transformer::config::ModelConfig;
+use crate::service::models::deepseek_coder::ModelConfig;
 use candle_core::{Device, Module, Result, Tensor};
-use candle_nn::{linear, LayerNorm, VarBuilder};
+use candle_nn::{LayerNorm, VarBuilder};
 
 use super::attention::MultiHeadAttention;
 use super::feed_forward::PositionWiseFeedForward;
@@ -11,7 +11,7 @@ use super::feed_forward::PositionWiseFeedForward;
 pub struct DeepSeekCoderEncoder {
     layers: Vec<EncoderLayer>,
     norm: LayerNorm,
-    device: Device,
+    _device: Device,
 }
 
 /// Single Encoder Layer
@@ -24,7 +24,7 @@ struct EncoderLayer {
 }
 
 impl DeepSeekCoderEncoder {
-    pub fn new(config: &super::config::ModelConfig, vb: VarBuilder) -> Result<Self> {
+    pub fn new(config: &ModelConfig, vb: VarBuilder) -> Result<Self> {
         let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
 
         let mut layers = Vec::with_capacity(config.num_layers);
@@ -44,7 +44,7 @@ impl DeepSeekCoderEncoder {
             config.layer_norm_eps,
         );
 
-        Ok(Self { layers, norm, device })
+        Ok(Self { layers, norm, _device: device })
     }
 
     pub fn forward(&self, input: &Tensor, attention_mask: Option<&Tensor>) -> Result<Tensor> {

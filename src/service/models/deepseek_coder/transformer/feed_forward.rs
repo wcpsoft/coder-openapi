@@ -1,4 +1,4 @@
-use candle_core::{Device, Module, Result, Tensor};
+use candle_core::{Module, Result, Tensor};
 use candle_nn::{linear, VarBuilder};
 
 /// Position-wise feed forward network implementation
