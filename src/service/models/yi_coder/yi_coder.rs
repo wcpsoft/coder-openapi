@@ -1,396 +1,303 @@
-use super::config::ModelConfig;
-use super::inference::YiCoderInference;
-use super::loader::ModelLoader;
-use super::transformer::YiCoderTransformer;
-use crate::entities::chat_completion_message::ChatCompletionMessage;
-use crate::error::AppError;
-use crate::service::chat::chat_completion::ChatCompletionParams;
-use candle_core::{DType, IndexOp, Tensor};
-use rand::distributions::{Distribution, WeightedIndex};
-use rust_i18n::t;
-/// softmax(x_i) = exp(x_i - max(x)) / Σ(exp(x_j - max(x)))
-fn softmax(tensor: &Tensor, dim: usize) -> Result<Tensor, candle_core::Error> {
-    log::debug!("Softmax input tensor shape: {:?}", tensor.shape());
+use super::transformer::{self, TransformerError, YiCoderTransformer};
+use candle_core::{Device, Result, Tensor, VarBuilder};
+use candle_nn::{Embedding, LayerNorm};
+use std::fmt;
 
-    // Check tensor dimensions
-    if tensor.shape().dims().is_empty() {
-        return Err(candle_core::Error::msg(AppError::new(
-            "Empty tensor provided to softmax".to_string(),
-        )));
-    }
-
-    // Validate input tensor before conversion
-    let values = tensor.to_vec1::<f32>()?;
-    if values.iter().any(|&x| x.is_nan() || x.is_infinite()) {
-        return Err(candle_core::Error::msg(AppError::new(
-            "Input tensor contains NaN or infinite values before conversion".to_string(),
-        )));
-    }
-
-    // Convert to f64 for better numerical stability
-    let tensor = tensor.to_dtype(DType::F64)?;
-    log::debug!("After dtype conversion tensor shape: {:?}", tensor.shape());
-
-    // Validate input tensor after conversion
-    let values = tensor.to_vec1::<f64>()?;
-    if values.iter().any(|&x| x.is_nan() || x.is_infinite()) {
-        return Err(candle_core::Error::msg(AppError::new(
-            "Input tensor contains NaN or infinite values".to_string(),
-        )));
-    }
-
-    // Subtract max for numerical stability
-    let max = tensor.max_keepdim(dim)?;
-    log::debug!("Max tensor shape: {:?}", max.shape());
-
-    // Safely convert max tensor to scalar
-    let max = max.squeeze(0)?; // Remove the extra dimension
-    let max_value = if max.dtype() == DType::F64 {
-        max.to_scalar::<f64>()?
-    } else {
-        max.to_dtype(DType::F64)?.to_scalar::<f64>()?
-    };
-    log::debug!("Max tensor value: {:?}", max_value);
-
-    // Ensure proper broadcasting by reshaping max to match tensor dimensions
-    let max = max.broadcast_as(tensor.shape())?;
-    log::debug!("Broadcasted max tensor shape: {:?}", max.shape());
-
-    let diff = tensor.sub(&max)?;
-    log::debug!("Diff tensor values: {:?}", diff.to_vec1::<f64>()?);
-    log::debug!("Diff tensor shape: {:?}", diff.shape());
-
-    // Clip values to prevent overflow in exp calculation
-    let diff = diff.clamp(-100.0, 100.0)?;
-    log::debug!("Clipped diff tensor values: {:?}", diff.to_vec1::<f64>()?);
-
-    // Compute exp with validation
-    let exp = diff.exp()?;
-    log::debug!("Exp tensor shape: {:?}", exp.shape());
-    log::debug!("Exp tensor values: {:?}", exp.to_vec1::<f64>()?);
-
-    // Compute sum with larger epsilon to prevent division by zero
-    let sum = exp.sum_keepdim(dim)?;
-    log::debug!("Sum tensor shape: {:?}", sum.shape());
-
-    // Use larger epsilon value (1e-6) for better stability
-    let epsilon = Tensor::new(1e-6, tensor.device())?.broadcast_as(sum.shape())?;
-    log::debug!("Epsilon tensor shape: {:?}", epsilon.shape());
-
-    let sum = sum.add(&epsilon)?;
-    log::debug!("Sum with epsilon tensor shape: {:?}", sum.shape());
-
-    // Compute probabilities
-    log::debug!("Exp shape before division: {:?}", exp.shape());
-    log::debug!("Sum shape before division: {:?}", sum.shape());
-
-    // Broadcast sum to match exp shape
-    let sum = sum.broadcast_as(exp.shape())?;
-    log::debug!("Broadcasted sum shape: {:?}", sum.shape());
-
-    let probs = exp.div(&sum)?;
-    log::debug!("Probs tensor shape: {:?}", probs.shape());
-
-    // Convert back to f32
-    let result = probs.to_dtype(DType::F32)?;
-    log::debug!("Final softmax result shape: {:?}", result.shape());
-
-    // Validate probabilities
-    let values = result.to_vec1::<f32>()?;
-    if values.iter().any(|&x| x.is_nan()) {
-        return Err(candle_core::Error::msg(AppError::new(
-            "NaN values detected in softmax output".to_string(),
-        )));
-    }
-    if values.iter().any(|&x| x.is_infinite()) {
-        return Err(candle_core::Error::msg(AppError::new(
-            "Infinite values detected in softmax output".to_string(),
-        )));
-    }
-    if values.iter().any(|&x| x < 0.0) {
-        return Err(candle_core::Error::msg(AppError::new(
-            "Negative values detected in softmax output".to_string(),
-        )));
-    }
-
-    // Normalization with proper broadcasting
-    let sum = result.sum_keepdim(0)?;
-    let sum = sum.broadcast_as(result.shape())?;
-    let normalized = result.div(&sum)?;
-
-    // Final validation
-    let normalized_values = normalized.to_vec1::<f32>()?;
-    if normalized_values.iter().any(|&x| x.is_nan() || x.is_infinite() || x < 0.0) {
-        return Err(candle_core::Error::msg(AppError::new(
-            "Invalid values detected after normalization".to_string(),
-        )));
-    }
-
-    Ok(normalized)
-}
-
-pub struct YiCoder {
-    generation_config: Box<ModelConfig>,
-    _loader: ModelLoader,
-    _transformer: YiCoderTransformer,
-    _inference: YiCoderInference,
-}
-
-impl YiCoder {
-    pub async fn new() -> Result<Self, AppError> {
-        log::debug!("进入Yi-1.5B");
-        let loader = ModelLoader::new("yi-coder", "config/app.yml").await?;
-        let model_config = loader.get_model_config("yi-coder")?;
-        let model_dir = format!("{}/{}", "models_cache", model_config.hf_hub_id);
-        let config_path = format!("{}/{}", model_dir, "config.json");
-        let generation_config = Box::new(ModelConfig::from_file(config_path)?);
-        log::debug!("完成generation_config");
-        let loader = ModelLoader::new("yi-coder", "config/app.yml").await?;
-        log::debug!("完成loader");
-        let transformer = YiCoderTransformer::new(&generation_config, loader.get_var_builder()?);
-        log::debug!("完成transformer");
-        let inference = YiCoderInference::new(&generation_config);
-        log::debug!("完成inference");
-        Ok(Self {
-            generation_config,
-            _loader: loader,
-            _transformer: transformer?,
-            _inference: inference,
-        })
-    }
-
-    pub async fn infer(
-        &self,
-        messages: Vec<ChatCompletionMessage>,
-        params: ChatCompletionParams,
-    ) -> Result<Vec<ChatCompletionMessage>, AppError> {
-        let temp = params.temperature.unwrap_or(self.generation_config.temperature) as f64;
-        let top_p = params.top_p.unwrap_or(self.generation_config.top_p);
-        let max_tokens = params.max_tokens.unwrap_or(self.generation_config.max_tokens);
-
-        log::debug!("{}", t!("logs.handling_request"));
-        log::debug!(
-            "Inference parameters - temperature: {}, top_p: {}, max_tokens: {}",
-            temp,
-            top_p,
-            max_tokens
-        );
-        log::debug!("Input messages count: {}", messages.len());
-        let tokenizer = self._loader.get_tokenizer().await?;
-        let mut input_ids = Vec::new();
-        for message in &messages {
-            log::debug!(
-                "Processing message - role: {}, content length: {}",
-                message.role,
-                message.content.len()
-            );
-            let encoding = tokenizer.encode(message.content.clone(), true)?;
-            input_ids.extend(encoding.get_ids().to_vec());
-            log::debug!("encoding tokens: {:?}", encoding);
-            log::debug!("Encoded tokens count: {}", encoding.len());
+impl fmt::Display for TransformerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TransformerError::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
+            TransformerError::NumericalInstability(msg) => {
+                write!(f, "Numerical instability: {}", msg)
+            }
+            TransformerError::ShapeMismatch(msg) => write!(f, "Shape mismatch: {}", msg),
+            TransformerError::InvalidTensorValues(msg) => {
+                write!(f, "Invalid tensor values: {}", msg)
+            }
+            TransformerError::LayerError(msg) => write!(f, "Layer error: {}", msg),
         }
-        log::debug!("input_ids tokens: {:?}", input_ids);
-        log::debug!("Total input tokens: {}", input_ids.len());
+    }
+}
 
-        // Create input tensor with batch dimension, keep original BF16 type
-        let input_tensor = Tensor::from_slice(
-            &input_ids[..],
-            (1, input_ids.len()), // Add batch dimension
-            self._transformer.device(),
-        )?;
-        log::debug!(
-            "Input tensor shape: {:?}, dtype: {:?}",
-            input_tensor.shape(),
-            input_tensor.dtype()
+impl std::error::Error for TransformerError {}
+
+impl From<TransformerError> for candle_core::Error {
+    fn from(err: TransformerError) -> Self {
+        candle_core::Error::Msg(err.to_string())
+    }
+}
+
+/// 验证张量值是否为NaN/Infinity
+fn validate_tensor(tensor: &Tensor, context: &str) -> Result<()> {
+    // Convert tensor to f32 and check for invalid values
+    let tensor_f32 = tensor.to_dtype(candle_core::DType::F32)?;
+    let values = tensor_f32.flatten_all()?.to_vec1::<f32>()?;
+
+    let nan_count = values.iter().filter(|&x| x.is_nan()).count();
+    let inf_count = values.iter().filter(|&x| x.is_infinite()).count();
+
+    if nan_count > 0 || inf_count > 0 {
+        log::error!(
+            "{}: Invalid tensor values detected - NaN: {}, Infinite: {}",
+            context,
+            nan_count,
+            inf_count
         );
-        // Remove batch dimension before passing to transformer
-        let input_tensor = input_tensor.squeeze(0)?;
-        log::debug!("Transformer input tensor shape: {:?}", input_tensor.shape());
-        let logits = self._transformer.forward(&input_tensor)?;
-        log::debug!("Logits shape: {:?}, dtype: {:?}", logits.shape(), logits.dtype());
-        // Add batch dimension back for consistency
-        let logits = logits.unsqueeze(0)?;
-        log::debug!("Logits with batch dimension: {:?}", logits.shape());
+        return Err(TransformerError::InvalidTensorValues(format!(
+            "{}: Contains NaN/Inf values",
+            context
+        ))
+        .into());
+    }
+    Ok(())
+}
 
-        log::debug!("Generating next token...");
-        let mut messages: Result<Vec<ChatCompletionMessage>, AppError> = if let Some(temp) =
-            params.temperature
-        {
-            log::debug!("Before squeeze - logits shape: {:?}", logits.shape());
-            // Remove batch dimension
-            let logits = logits.squeeze(0)?;
-            log::debug!(
-                "After first squeeze - logits shape: {:?}, dtype: {:?}",
-                logits.shape(),
-                logits.dtype()
-            );
+/// 验证张量形状
+fn validate_shape(tensor: &Tensor, expected: &[usize], context: &str) -> Result<()> {
+    let actual = tensor.dims();
+    if actual != expected {
+        log::error!("{}: Shape mismatch. Expected {:?}, got {:?}", context, expected, actual);
+        return Err(TransformerError::ShapeMismatch(format!(
+            "{}: Expected shape {:?}, got {:?}",
+            context, expected, actual
+        ))
+        .into());
+    }
+    Ok(())
+}
 
-            // Convert to U32 for index-select operation
-            let logits_u32 = logits.to_dtype(DType::U32)?;
-            log::debug!(
-                "After U32 conversion - logits shape: {:?}, dtype: {:?}",
-                logits_u32.shape(),
-                logits_u32.dtype()
-            );
+/// YiCoder Transformer模型
+/// 实现用于代码生成的Transformer架构
+#[derive(Debug)]
+pub struct YiCoderTransformer {
+    encoder: transformer::YiCoderEncoder,
+    decoder: transformer::YiCoderDecoder,
+    embeddings: Embedding,
+    device: Device,
+    _config: super::config::ModelConfig,
+}
 
-            // Select last token's logits
-            let selected_logits = logits_u32.i((logits_u32.dim(0)? - 1, ..))?;
-            log::debug!(
-                "After index select - selected_logits shape: {:?}, dtype: {:?}",
-                selected_logits.shape(),
-                selected_logits.dtype()
-            );
+impl YiCoderTransformer {
+    /// 创建新的YiCoderTransformer实例
+    ///
+    /// # 参数
+    /// * `config` - 模型配置
+    /// * `vb` - 变量构建器
+    ///
+    /// # 返回
+    /// Result<Self> - 新的transformer实例
+    pub fn new(config: &super::config::ModelConfig, vb: VarBuilder) -> Result<Self> {
+        let config = config.clone();
+        let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
+        log::debug!("Selected computation device: {:?}", device);
 
-            // Convert back to F32 for computation
-            let logits_f32 = selected_logits.to_dtype(DType::F32)?;
-            log::debug!(
-                "After F32 conversion - logits_f32 shape: {:?}, dtype: {:?}",
-                logits_f32.shape(),
-                logits_f32.dtype()
-            );
+        // Initialize encoder and decoder
+        let encoder = transformer::YiCoderEncoder::new(&config, vb.pp("encoder"))?;
+        let decoder = transformer::YiCoderDecoder::new(&config, vb.pp("decoder"))?;
 
-            // Validate final dtype
-            if logits_f32.dtype() != DType::F32 {
-                log::error!("Final tensor has incorrect dtype: {:?}", logits_f32.dtype());
-                return Err(AppError::new(format!(
-                    "Final tensor has incorrect dtype: {:?}, expected F32",
-                    logits_f32.dtype()
-                )));
-            }
+        // Initialize embeddings
+        log::debug!("Initializing embeddings");
+        let embeddings = Embedding::new(
+            vb.get((config.vocab_size, config.hidden_size), "model.embeddings.word_embeddings")
+                .unwrap_or_else(|_| {
+                    log::warn!("model.embeddings.word_embeddings not found, using zero tensor");
+                    Tensor::zeros(
+                        (config.vocab_size, config.hidden_size),
+                        candle_core::DType::F32,
+                        &device,
+                    )
+                    .unwrap()
+                }),
+            config.hidden_size,
+        );
 
-            let scaled_logits = logits_f32;
-            log::debug!("Scaled logits shape: {:?}", scaled_logits.shape());
-            // Validate temperature value
-            if temp.is_nan() || temp.is_infinite() || temp <= 0.0 {
-                return Err(AppError::new(format!(
-                    "Invalid temperature value: {} (must be positive finite number)",
-                    temp
-                )));
-            }
+        Ok(Self { encoder, decoder, embeddings, device, _config: config.clone() })
+    }
 
-            log::debug!("Creating temperature tensor with value: {}", temp);
-            log::debug!("Scaled logits shape before broadcast: {:?}", scaled_logits.shape());
+    /// 执行Transformer前向传播
+    /// 参数:
+    /// - input: 输入张量
+    /// - attention_mask: 注意力掩码（可选）
+    /// 返回: Result<Tensor>
+    pub fn transform(&self, input: Tensor, attention_mask: Option<Tensor>) -> Result<Tensor> {
+        self.forward(&input, attention_mask.as_ref())
+    }
 
-            // Create temperature tensor with proper shape
-            let temp_tensor =
-                Tensor::new(temp, self._transformer.device())?.to_dtype(DType::F32)?;
-            log::debug!("Initial temperature tensor shape: {:?}", temp_tensor.shape());
+    /// 获取当前设备 (CPU/GPU)
+    pub fn device(&self) -> &Device {
+        &self.device
+    }
 
-            // Broadcast to match logits shape
-            let temp_tensor = temp_tensor.broadcast_as(scaled_logits.shape())?;
-            log::debug!("Broadcast temperature tensor shape: {:?}", temp_tensor.shape());
-            log::debug!("Scaled logits shape before division: {:?}", scaled_logits.shape());
+    /// 执行Transformer前向传播
+    /// 参数:
+    /// - input: 输入张量
+    /// 返回: Result<Tensor>
+    pub fn forward(&self, input: &Tensor, _attention_mask: Option<&Tensor>) -> Result<Tensor> {
+        log::debug!("[Transformer] Starting forward pass");
+        log::debug!(
+            "[Transformer] Initial input - shape: {:?}, dtype: {:?}",
+            input.shape(),
+            input.dtype()
+        );
 
-            // Explicit reshape to ensure shape compatibility
-            let temp_tensor = temp_tensor.reshape(scaled_logits.shape())?;
-            log::debug!("Reshaped temperature tensor shape: {:?}", temp_tensor.shape());
-            log::debug!("Scaled logits shape before division: {:?}", scaled_logits.shape());
-            log::debug!("Temp tensor shape before division: {:?}", temp_tensor.shape());
+        // Validate and convert input tensor
+        log::debug!("[Transformer] Validating input tensor");
 
-            let scaled_logits = scaled_logits.div(&temp_tensor)?;
-            log::debug!("Scaled logits shape after division: {:?}", scaled_logits.shape());
-            log::debug!("After broadcast_div - scaled_logits shape: {:?}", scaled_logits.shape());
-            log::debug!("Temp tensor shape after division: {:?}", temp_tensor.shape());
-            let probs = softmax(&scaled_logits, 0)?;
-            log::debug!("Softmax probs shape: {:?}", probs.shape());
-
-            // Convert to vector with validation
-            let probs_vec: Vec<f32> = probs.to_vec1()?;
-            log::debug!("Raw probabilities vector: {:?}", probs_vec);
-
-            // If any invalid values remain, use uniform distribution as fallback
-            if probs_vec.iter().any(|&x| x.is_nan() || x.is_infinite() || x < 0.0) {
-                log::warn!("Invalid probabilities detected, using uniform distribution");
-                let uniform_prob = 1.0 / probs_vec.len() as f32;
-                let probs_vec = vec![uniform_prob; probs_vec.len()];
-                let dist = WeightedIndex::new(&probs_vec)
-                    .map_err(|e| AppError::new(format!("WeightedIndex error: {}", e)))?;
-                let next_token = dist.sample(&mut rand::thread_rng()) as u32;
-                let output_text = tokenizer.decode(&[next_token], true)?;
-                return Ok(vec![ChatCompletionMessage {
-                    role: "assistant".to_string(),
-                    content: output_text,
-                }]);
-            }
-
-            log::debug!("Normalized probabilities: {:?}", probs_vec);
-            let dist = WeightedIndex::new(&probs_vec)
-                .map_err(|e| AppError::new(format!("WeightedIndex error: {}", e)))?;
-            let next_token = dist.sample(&mut rand::thread_rng()) as u32;
-            let output_text = tokenizer.decode(&[next_token], true)?;
-            Ok(vec![ChatCompletionMessage { role: "assistant".to_string(), content: output_text }])
+        // Convert input to i64 for Embedding layer
+        let input_i64 = if input.dtype() != candle_core::DType::I64 {
+            log::warn!("[Transformer] Converting input dtype from {:?} to I64", input.dtype());
+            input.to_dtype(candle_core::DType::I64)?
         } else {
-            let next_token = logits.argmax(1)?.to_scalar::<u32>()?;
-            let output_text = tokenizer.decode(&[next_token], true)?;
-            Ok(vec![ChatCompletionMessage { role: "assistant".to_string(), content: output_text }])
+            input.clone()
         };
 
-        if params.stream.unwrap_or(false) {
-            let _messages = Ok::<Vec<ChatCompletionMessage>, AppError>(vec![]);
-            log::debug!("Starting streaming response...");
-            let mut stream_output = String::new();
-            let mut generated_tokens = 0;
-            let max_tokens = params.max_tokens.unwrap_or(self.generation_config.max_tokens);
-            let mut input_ids = input_ids;
-            log::debug!("Max tokens for streaming: {}", max_tokens);
-
-            while generated_tokens < max_tokens {
-                // Generate next token
-                let next_token = if let Some(temp) = params.temperature {
-                    let logits = logits.squeeze(0)?;
-                    log::debug!("Creating temperature tensor with value: {}", temp);
-                    let temp_tensor = Tensor::new(temp, self._transformer.device())?
-                        .to_dtype(DType::F32)?
-                        .broadcast_as(logits.shape())?;
-                    log::debug!("Temperature tensor shape: {:?}", temp_tensor.shape());
-                    log::debug!("Logits shape before division: {:?}", logits.shape());
-                    let scaled_logits = logits.to_dtype(DType::F32)?.div(&temp_tensor)?;
-                    log::debug!("Scaled logits shape after division: {:?}", scaled_logits.shape());
-                    let probs = softmax(&scaled_logits, 0)?;
-
-                    let probs_vec: Vec<f32> = probs.to_vec1()?;
-                    let dist = WeightedIndex::new(&probs_vec)
-                        .map_err(|e| AppError::new(format!("WeightedIndex error: {}", e)))?;
-                    dist.sample(&mut rand::thread_rng()) as u32
-                } else {
-                    logits.argmax(1)?.to_scalar::<u32>()?
-                };
-
-                // Decode token and add to output
-                let token_text = tokenizer.decode(&[next_token], true)?;
-                log::debug!("Stream token {}: {}", generated_tokens + 1, token_text);
-                stream_output.push_str(&token_text);
-                let _output_text = stream_output.clone();
-                generated_tokens += 1;
-                log::debug!("Total generated tokens: {}", generated_tokens);
-
-                // Send partial response
-                let message =
-                    ChatCompletionMessage { role: "assistant".to_string(), content: token_text };
-                log::debug!("{}", t!("logs.chat_request_received"));
-                if let Err(e) = self._inference.send_stream_response(&message) {
-                    log::warn!("{} {}", t!("errors.stream_response.failed"), e);
-                    break;
-                }
-
-                // Update input sequence
-                input_ids.push(next_token);
-                let input_tensor =
-                    Tensor::from_slice(&input_ids, (input_ids.len(),), self._transformer.device())?;
-                log::debug!("Streaming input tensor shape: {:?}", input_tensor.shape());
-                let logits = self._transformer.forward(&input_tensor)?;
-                log::debug!("Streaming logits shape: {:?}", logits.shape());
-                // Add batch dimension for consistency
-                let logits = logits.unsqueeze(0)?;
-                log::debug!("Streaming logits with batch dimension: {:?}", logits.shape());
-            }
-
-            messages = Ok::<Vec<ChatCompletionMessage>, AppError>(vec![ChatCompletionMessage {
-                role: "assistant".to_string(),
-                content: stream_output,
-            }]);
+        // Validate integer values
+        let min_value = input_i64.min(&Tensor::new(0, &self.device)?)?.to_scalar::<i64>()?;
+        if min_value < 0 {
+            log::error!("[Transformer] Input contains negative values");
+            return Err(candle_core::Error::msg(AppError::new(
+                "Input tensor contains negative values which are invalid for embeddings"
+                    .to_string(),
+            )));
         }
 
-        messages
+        // Apply embeddings with i64 input
+        log::debug!("[Transformer] Applying embeddings");
+        let mut hidden_states = self.embeddings.forward(&input_i64)?;
+        hidden_states = hidden_states.clamp(-1e4, 1e4)?;
+
+        // Convert embeddings output to F32 for subsequent layers
+        hidden_states = hidden_states.to_dtype(candle_core::DType::F32)?;
+        log::debug!(
+            "[Transformer] Embeddings output - shape: {:?}, dtype: {:?}",
+            hidden_states.shape(),
+            hidden_states.dtype()
+        );
+
+        // Validate embeddings output
+        validate_tensor(&hidden_states, "Embeddings output")?;
+
+        if hidden_states.dtype() != candle_core::DType::F32 {
+            log::error!(
+                "[Transformer] Invalid embeddings output dtype: {:?}, expected F32",
+                hidden_states.dtype()
+            );
+            return Err(candle_core::Error::msg(AppError::new(format!(
+                "Expected F32 embeddings output, got {:?}",
+                hidden_states.dtype()
+            ))));
+        }
+
+        // Handle tensor dimensions
+        log::debug!("[Transformer] Handling tensor dimensions");
+        match hidden_states.dims() {
+            &[1] => {
+                // Special case for single-element tensor
+                log::debug!("[Transformer] Handling single-element tensor");
+                hidden_states = hidden_states.unsqueeze(0)?.unsqueeze(0)?;
+                log::debug!(
+                    "[Transformer] After adding dimensions - shape: {:?}",
+                    hidden_states.shape()
+                );
+            }
+            &[_batch_size] => {
+                // General rank 1 case
+                log::debug!("[Transformer] Adding batch dimension");
+                hidden_states = hidden_states.unsqueeze(0)?;
+                log::debug!(
+                    "[Transformer] After adding batch dimension - shape: {:?}",
+                    hidden_states.shape()
+                );
+            }
+            &[_batch_size, _seq_len] => {
+                log::debug!("[Transformer] Input has correct dimensions");
+            }
+            &[1, _batch_size, _seq_len] => {
+                log::debug!("[Transformer] Removing extra dimension");
+                hidden_states = hidden_states.squeeze(0)?;
+                log::debug!(
+                    "[Transformer] After removing extra dimension - shape: {:?}",
+                    hidden_states.shape()
+                );
+            }
+            _ => {
+                log::error!("[Transformer] Unexpected tensor shape: {:?}", hidden_states.dims());
+                return Err(candle_core::Error::msg(AppError::new(format!(
+                    "Unexpected tensor shape: {:?}",
+                    hidden_states.dims()
+                ))));
+            }
+        }
+        // Process through encoder
+        log::debug!("[Transformer] Processing through encoder");
+        hidden_states = self.encoder.forward(&hidden_states, None)?;
+        log::debug!(
+            "[Transformer] Encoder output - shape: {:?}, dtype: {:?}",
+            hidden_states.shape(),
+            hidden_states.dtype()
+        );
+
+        // Process through decoder
+        log::debug!("[Transformer] Processing through decoder");
+        hidden_states = self.decoder.forward(&hidden_states, None)?;
+        log::debug!(
+            "[Transformer] Decoder output - shape: {:?}, dtype: {:?}",
+            hidden_states.shape(),
+            hidden_states.dtype()
+        );
+
+        // Ensure proper input type (F32)
+        let hidden_states = if hidden_states.dtype() != candle_core::DType::F32 {
+            log::warn!("Converting hidden states from {:?} to F32", hidden_states.dtype());
+            hidden_states.to_dtype(candle_core::DType::F32)?
+        } else {
+            hidden_states
+        };
+
+        // Add more aggressive numerical stability checks
+        let mut hidden_states = hidden_states.clamp(-1e3, 1e3)?;
+
+        // Check for NaN/Inf values before layer norm
+        let values = hidden_states.flatten_all()?.to_vec1::<f32>()?;
+        let nan_count = values.iter().filter(|&x| x.is_nan()).count();
+        let inf_count = values.iter().filter(|&x| x.is_infinite()).count();
+
+        if nan_count > 0 || inf_count > 0 {
+            log::error!(
+                "NaN/Inf detected before final layer norm - NaN: {}, Inf: {}",
+                nan_count,
+                inf_count
+            );
+            return Err(candle_core::Error::msg(AppError::new(
+                "NaN/Inf values detected before final layer norm".to_string(),
+            )));
+        }
+
+        // Add robust variance stability check with more aggressive stabilization
+        let variance = hidden_states.var(1)?;
+        let min_variance = variance.min(0)?.to_scalar::<f32>()?;
+        let stability_factor = if min_variance < 1e-20 {
+            log::warn!(
+                "Extremely low variance detected: {}. Adding larger stability factor.",
+                min_variance
+            );
+            1e-5f32 // Increased stability factor for very low variance
+        } else if min_variance < 1e-8 {
+            log::warn!("Low variance detected: {}. Adding stability factor.", min_variance);
+            1e-6f32 // Increased stability factor
+        } else {
+            1e-8f32 // Always add small stability factor
+        };
+
+        // Add stability factor and clamp values
+        hidden_states = hidden_states
+            .broadcast_add(&Tensor::new(stability_factor, &self.device)?)?
+            .clamp(-1e3, 1e3)?;
+
+        // Recompute variance after stabilization
+        let _variance = hidden_states.var(1)?.clamp(1e-10, f32::MAX)?;
+
+        log::debug!("[Transformer] Forward pass completed successfully");
+        Ok(hidden_states)
     }
 }

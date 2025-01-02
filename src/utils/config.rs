@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -50,6 +51,16 @@ pub struct LocalesConfig {
 pub struct ModelConfig {
     pub hf_hub_id: String,
     pub model_files: ModelFiles,
+    #[serde(default)]
+    pub hidden_size: Option<usize>,
+    #[serde(default)]
+    pub num_attention_heads: Option<usize>,
+    #[serde(default)]
+    pub num_hidden_layers: Option<usize>,
+    #[serde(default)]
+    pub intermediate_size: Option<usize>,
+    #[serde(default)]
+    pub vocab_size: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -90,12 +101,6 @@ pub fn get_config() -> &'static AppConfig {
     })
 }
 
-pub fn load_route_config() -> RouteConfig {
-    let config_file =
-        std::fs::File::open("config/route.yml").expect("Failed to open route configuration file");
-    serde_yaml::from_reader(config_file).expect("Failed to parse route configuration")
-}
-
 impl AppConfig {
     pub fn load(config_path: &str) -> anyhow::Result<Self> {
         let config_file = std::fs::File::open(config_path)?;
@@ -104,9 +109,44 @@ impl AppConfig {
     }
 
     pub fn get_model_config(&self, model_id: &str) -> anyhow::Result<ModelConfig> {
-        self.models
+        let mut config = self
+            .models
             .get(model_id)
             .cloned()
-            .ok_or_else(|| anyhow::anyhow!("Model config not found for {}", model_id))
+            .ok_or_else(|| anyhow::anyhow!("Model config not found for {}", model_id))?;
+
+        // Load parameters from config.json if they're not set
+        if config.hidden_size.is_none()
+            || config.num_attention_heads.is_none()
+            || config.num_hidden_layers.is_none()
+            || config.intermediate_size.is_none()
+            || config.vocab_size.is_none()
+        {
+            let config_path =
+                format!("{}/{}/{}", self.models_cache_dir, model_id, config.model_files.config);
+            let config_file = std::fs::File::open(config_path)?;
+            let model_config: serde_json::Value = serde_json::from_reader(config_file)?;
+
+            if config.hidden_size.is_none() {
+                config.hidden_size = model_config["hidden_size"].as_u64().map(|v| v as usize);
+            }
+            if config.num_attention_heads.is_none() {
+                config.num_attention_heads =
+                    model_config["num_attention_heads"].as_u64().map(|v| v as usize);
+            }
+            if config.num_hidden_layers.is_none() {
+                config.num_hidden_layers =
+                    model_config["num_hidden_layers"].as_u64().map(|v| v as usize);
+            }
+            if config.intermediate_size.is_none() {
+                config.intermediate_size =
+                    model_config["intermediate_size"].as_u64().map(|v| v as usize);
+            }
+            if config.vocab_size.is_none() {
+                config.vocab_size = model_config["vocab_size"].as_u64().map(|v| v as usize);
+            }
+        }
+
+        Ok(config)
     }
 }

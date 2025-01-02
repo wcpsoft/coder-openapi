@@ -1,25 +1,25 @@
+use crate::entities::models::Model;
 use crate::error::Result;
 use candle_core::Device;
 
 #[derive(Clone)]
-pub struct DeepseekCoderModel {
+pub struct DeepSeekCoderModel {
     #[allow(dead_code)]
     device: Device, // Will be used for tensor operations
                     // Add other necessary model parameters here
 }
 
-impl DeepseekCoderModel {
-    pub async fn new() -> Result<Self> {
+impl DeepSeekCoderModel {
+    pub async fn new(config_path: &str) -> Result<Self> {
         let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
-        let config = crate::service::models::deepseek_coder::config::ModelConfig::from_file(
-            "config/deepseek_coder.json",
-        )?;
-        let loader = crate::service::models::deepseek_coder::loader::DeepseekCoderLoader::new(
-            config.clone(),
-        );
-        let _tensors = loader.load_weights().await?;
+        let loader = crate::service::models::deepseek_coder::loader::ModelLoader::new(
+            "deepseek-coder",
+            config_path,
+        )
+        .await?;
+        let _tensors = loader.load()?;
 
-        Ok(DeepseekCoderModel { device })
+        Ok(DeepSeekCoderModel { device })
     }
 
     #[allow(dead_code)]
@@ -29,10 +29,10 @@ impl DeepseekCoderModel {
     }
 }
 
-impl crate::entities::models::Model for DeepseekCoderModel {
+impl Model for DeepSeekCoderModel {
     fn generate_response(&self, input: &str) -> Result<String> {
         // TODO: Implement actual response generation logic
         // For now, return a dummy response
-        Ok(format!("Deepseek Coder response to: {}", input))
+        Ok(format!("DeepSeek Coder response to: {}", input))
     }
 }

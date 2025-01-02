@@ -20,63 +20,8 @@ pub struct ModelLoader {
 
 impl ModelLoader {
     pub async fn new(model_id: &str, config_path: &str) -> anyhow::Result<Self> {
-        let config = AppConfig::load(config_path)?;
-        let model_config = config.get_model_config(model_id)?;
-
-        // 创建要下载的文件列表
-        // 如果缓存目录不存在则创建
-        let cache_dir = format!("models_cache/{}", model_config.hf_hub_id);
-        std::fs::create_dir_all(&cache_dir)?;
-
-        // 检查哪些文件需要下载
-        let mut files_to_download = Vec::new();
-        let mut model_paths = Vec::new();
-
-        // 检查权重文件 (model.safetensors)
-        for weight_file in &model_config.model_files.weights {
-            if !weight_file.ends_with(".safetensors") {
-                continue;
-            }
-            let file_path = format!("{}/{}", cache_dir, weight_file);
-            if !std::path::Path::new(&file_path).exists() {
-                files_to_download.push(weight_file.as_str());
-            }
-            model_paths.push(PathBuf::from(file_path));
-        }
-
-        // 检查tokenizer文件
-        let tokenizer_file = &model_config.model_files.tokenizer;
-        if tokenizer_file.ends_with(".model") {
-            let file_path = format!("{}/{}", cache_dir, tokenizer_file);
-            if !std::path::Path::new(&file_path).exists() {
-                files_to_download.push(tokenizer_file.as_str());
-            }
-            model_paths.push(PathBuf::from(file_path));
-        }
-
-        let config_files = [
-            &model_config.model_files.config,
-            &model_config.model_files.tokenizer_config,
-            &model_config.model_files.generation_config,
-        ];
-
-        for file in config_files {
-            let file_path = format!("{}/{}", cache_dir, file);
-            if !std::path::Path::new(&file_path).exists() {
-                files_to_download.push(file.as_str());
-            }
-            model_paths.push(PathBuf::from(file_path));
-        }
-
-        // 仅下载缺失的文件
-        if !files_to_download.is_empty() {
-            ModelDownloader::download_all_model_files(
-                config_path,
-                &model_config.hf_hub_id,
-                &files_to_download,
-            )
-            .await?;
-        }
+        // 下载模型文件
+        let model_paths = ModelDownloader::download_model_files(model_id, config_path).await?;
 
         Ok(Self {
             model_paths,
