@@ -1,5 +1,5 @@
 use candle_core::{Result, Tensor};
-use candle_nn::{linear, Linear, Module, VarBuilder};
+use candle_nn::{linear_no_bias, Linear, Module, VarBuilder};
 
 fn gelu(x: &Tensor) -> Result<Tensor> {
     // Precompute constants for GELU approximation
@@ -7,17 +7,27 @@ fn gelu(x: &Tensor) -> Result<Tensor> {
     const COEFF: f64 = 0.044715;
     const HALF: f64 = 0.5;
 
-    // Convert constants to tensors
-    let sqrt_2_over_pi = Tensor::new(SQRT_2_OVER_PI, x.device())?;
-    let coeff = Tensor::new(COEFF, x.device())?;
-    let half = Tensor::new(HALF, x.device())?;
-    let one = Tensor::new(1.0, x.device())?;
+    // Compute GELU using tensor operations with broadcasting
+    let device = x.device();
+    let dtype = x.dtype();
 
-    // Compute GELU using tensor operations
     let x_cubed = x.powf(3.0)?;
-    let inner = x.add(&x_cubed.mul(&coeff)?)?;
-    let tanh = inner.mul(&sqrt_2_over_pi)?.tanh()?;
-    let result = x.mul(&half)?.mul(&tanh.add(&one)?)?;
+
+    // Get input tensor shape for broadcasting
+    let shape = x.shape().dims();
+
+    // Create and expand tensors to match input shape
+    let coeff_tensor = Tensor::new(&[COEFF], device)?.to_dtype(dtype)?.expand(shape)?;
+    let inner = x.add(&x_cubed.mul(&coeff_tensor)?)?;
+
+    let sqrt_2_over_pi_tensor =
+        Tensor::new(&[SQRT_2_OVER_PI], device)?.to_dtype(dtype)?.expand(shape)?;
+    let tanh = inner.mul(&sqrt_2_over_pi_tensor)?.tanh()?;
+
+    let half_tensor = Tensor::new(&[HALF], device)?.to_dtype(dtype)?.expand(shape)?;
+    let one_tensor = Tensor::new(&[1.0], device)?.to_dtype(dtype)?.expand(shape)?;
+    let tanh_plus_one = tanh.add(&one_tensor)?;
+    let result = x.mul(&half_tensor)?.mul(&tanh_plus_one)?;
 
     Ok(result)
 }
@@ -29,8 +39,8 @@ pub struct PositionWiseFeedForward {
 
 impl PositionWiseFeedForward {
     pub fn new(hidden_size: usize, intermediate_size: usize, vb: VarBuilder) -> Result<Self> {
-        let fc1 = linear(hidden_size, intermediate_size, vb.pp("fc1"))?;
-        let fc2 = linear(intermediate_size, hidden_size, vb.pp("fc2"))?;
+        let fc1 = linear_no_bias(hidden_size, intermediate_size, vb.pp("up_proj"))?;
+        let fc2 = linear_no_bias(intermediate_size, hidden_size, vb.pp("down_proj"))?;
 
         Ok(Self { fc1, fc2 })
     }

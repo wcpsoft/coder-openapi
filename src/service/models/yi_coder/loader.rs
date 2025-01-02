@@ -58,17 +58,19 @@ impl ModelLoader {
                 // Calculate tensor size in bytes
                 let tensor_size = data.data().len();
                 total_bytes += tensor_size;
-
-                // Debug log tensor info with proper unit conversion
-                log::debug!(
-                    "Loaded tensor: {}, shape: {:?}, dtype: {:?}, size: {:.2} MB ({:.2} GB)",
-                    name,
-                    data.shape(),
-                    data.dtype(),
-                    tensor_size as f64 / BYTES_PER_MB,
-                    tensor_size as f64 / BYTES_PER_GB
-                );
-
+                if name.contains("model.layers.0")
+                    || name.contains("model.norm.weight")
+                    || name.contains("lm_head.weight")
+                {
+                    log::debug!(
+                        "Loaded tensor: {}, shape: {:?}, dtype: {:?}, size: {:.2} MB ({:.2} GB)",
+                        name,
+                        data.shape(),
+                        data.dtype(),
+                        tensor_size as f64 / BYTES_PER_MB,
+                        tensor_size as f64 / BYTES_PER_GB
+                    );
+                }
                 model_tensors.insert(name.to_string(), tensor);
             }
 
@@ -90,14 +92,14 @@ impl ModelLoader {
 
     pub fn get_model_config(
         &self,
-        model_id: &str,
+        model_key: &str,
     ) -> anyhow::Result<crate::utils::config::ModelConfig> {
         let config_str = self
             .config_path
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("Failed to convert PathBuf to str"))?;
         let config = AppConfig::load(config_str)?;
-        Ok(config.get_model_config(model_id)?.clone())
+        Ok(config.get_model_config(model_key)?.clone())
     }
 
     pub fn get_var_builder(&self) -> anyhow::Result<VarBuilder> {
@@ -132,7 +134,9 @@ impl ModelLoader {
     }
 
     pub fn load_transformer(&self) -> anyhow::Result<YiCoderTransformer> {
+        log::info!("开始初始化模型张量数据...");
         let vb = self.get_var_builder()?;
+        log::info!("开始初始化关键模型参数...");
         let config = self.get_model_config("yi-coder")?;
 
         let num_layers = config
@@ -146,7 +150,12 @@ impl ModelLoader {
         let intermediate_size = config
             .intermediate_size
             .ok_or_else(|| anyhow::anyhow!("intermediate_size not found in config"))?;
-
+        log::info!("正式启动YiCoderTransformer");
+        log::debug!("启动调试参数：");
+        log::debug!("num_layers: {}", num_layers);
+        log::debug!("hidden_size: {}", hidden_size);
+        log::debug!("num_attention_heads: {}", num_attention_heads);
+        log::debug!("intermediate_size: {}", intermediate_size);
         YiCoderTransformer::new(num_layers, hidden_size, num_attention_heads, intermediate_size, vb)
             .map_err(|e| anyhow::anyhow!("Failed to create YiCoderTransformer: {}", e))
     }

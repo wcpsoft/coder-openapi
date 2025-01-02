@@ -114,13 +114,14 @@ impl AppConfig {
         Ok(config)
     }
 
-    pub fn get_model_config(&self, model_id: &str) -> Result<ModelConfig> {
+    pub fn get_model_config(&self, model_key: &str) -> Result<ModelConfig> {
         let mut config = self
             .models
-            .get(model_id)
+            .get(model_key)
             .cloned()
-            .ok_or_else(|| anyhow!("Model config not found for {}", model_id))?;
-
+            .ok_or_else(|| anyhow!("Model config not found for {}", model_key))?;
+        log::debug!("get {} config: {:?}", model_key, config);
+        let model_id = config.clone().hf_hub_id;
         // Load parameters from config.json if they're not set
         if config.hidden_size.is_none()
             || config.num_attention_heads.is_none()
@@ -130,6 +131,7 @@ impl AppConfig {
         {
             let config_path =
                 format!("{}/{}/{}", self.models_cache_dir, model_id, config.model_files.config);
+            log::debug!("准备加载配置文件 {}", config_path);
             let config_file = std::fs::File::open(config_path)?;
             let model_config: serde_json::Value = serde_json::from_reader(config_file)?;
 

@@ -1,5 +1,5 @@
 use candle_core::{Module, Result, Tensor};
-use candle_nn::{linear, Linear, VarBuilder};
+use candle_nn::{linear_no_bias, Linear, VarBuilder};
 
 /// 多头注意力机制实现
 pub struct MultiHeadAttention {
@@ -23,10 +23,10 @@ impl MultiHeadAttention {
     /// 初始化后的MultiHeadAttention实例
     pub fn new(hidden_size: usize, num_heads: usize, vb: VarBuilder) -> Result<Self> {
         let head_size = hidden_size / num_heads;
-        let query = linear(hidden_size, hidden_size, vb.pp("query"))?;
-        let key = linear(hidden_size, hidden_size, vb.pp("key"))?;
-        let value = linear(hidden_size, hidden_size, vb.pp("value"))?;
-        let output = linear(hidden_size, hidden_size, vb.pp("output"))?;
+        let query = linear_no_bias(hidden_size, hidden_size, vb.pp("q_proj"))?;
+        let key = linear_no_bias(hidden_size, hidden_size, vb.pp("k_proj"))?;
+        let value = linear_no_bias(hidden_size, hidden_size, vb.pp("v_proj"))?;
+        let output = linear_no_bias(hidden_size, hidden_size, vb.pp("o_proj"))?;
 
         Ok(Self { query, key, value, output, num_heads, head_size })
     }

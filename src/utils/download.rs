@@ -21,6 +21,7 @@ impl ModelDownloader {
         log::debug!("Using config path: {}", config_path);
 
         let config = AppConfig::load(config_path)?;
+        log::debug!("config {:?}", config);
         let model_config = config.get_model_config(model_id)?;
         log::debug!("Loaded model config for: {}", model_id);
 
