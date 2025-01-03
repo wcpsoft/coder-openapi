@@ -71,7 +71,8 @@ impl YiCoderTransformer {
             // Update input for next iteration
             let mut embedding = vec![0.0; 2048];
             embedding[next_token as usize] = 1.0;
-            let new_token = Tensor::from_slice(&embedding, (1, 1, 2048), output.device())?;
+            let new_token = Tensor::from_slice(&embedding, (1, 1, 2048), output.device())?
+                .to_dtype(candle_core::DType::F32)?;
             output = Tensor::cat(&[output, new_token], 1)?;
         }
 
