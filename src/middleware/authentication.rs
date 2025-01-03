@@ -9,19 +9,21 @@ use std::pin::Pin;
 /// # 示例
 /// ```rust
 /// use actix_web::{web, App, HttpServer};
-/// use coder_openapi::middleware::Authentication;
-/// use coder_openapi::routes::config;
+/// use coder_openapi::middleware::authentication::Authentication;
+/// use coder_openapi::routes::route::configure;
 ///
 /// #[actix_web::main]
 /// async fn main() -> std::io::Result<()> {
 ///     std::env::set_var("API_KEY", "test-api-key");
 ///     
+///     let listener = std::net::TcpListener::bind("127.0.0.1:0")?;
+///     let port = listener.local_addr()?.port();
 ///     HttpServer::new(|| {
 ///         App::new()
 ///             .wrap(Authentication)
-///             .configure(config)
+///             .configure(configure)
 ///     })
-///     .bind(("127.0.0.1", 8080))?
+///     .listen(listener)?
 ///     .run()
 ///     .await
 /// }

@@ -11,7 +11,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() {
-//!     let manager = ModelManager::new();
+//!     let manager = ModelManager::new().await;
 //!     manager.download_model("yi-coder", "config/app.yml").await.unwrap();
 //! }
 //! ```
@@ -55,20 +55,34 @@ pub struct ModelStatus {
 
 impl Default for ModelManager {
     fn default() -> Self {
-        Self::new()
+        Self {
+            yi_coder: Arc::new(RwLock::new(None)),
+            deepseek_coder: Arc::new(RwLock::new(None)),
+            model_status: Arc::new(RwLock::new(HashMap::new())),
+        }
     }
 }
 
 impl ModelManager {
     /// 创建一个新的ModelManager实例
-    pub fn new() -> Self {
+    pub async fn new() -> Self {
         let manager = Self {
             yi_coder: Arc::new(RwLock::new(None)),
             deepseek_coder: Arc::new(RwLock::new(None)),
             model_status: Arc::new(RwLock::new(HashMap::new())),
         };
         // Initialize status from disk
-        let _ = manager.refresh_status_from_disk();
+        let _ = manager.refresh_status_from_disk().await;
+        // Initialize default models
+        manager
+            .model_status
+            .write()
+            .await
+            .insert("yi-coder".to_string(), ModelStatus { is_cached: false, is_enabled: false });
+        manager.model_status.write().await.insert(
+            "deepseek-coder".to_string(),
+            ModelStatus { is_cached: false, is_enabled: false },
+        );
         manager
     }
 
@@ -143,7 +157,7 @@ impl ModelManager {
     ///
     /// #[tokio::test]
     /// async fn test_download_model() {
-    ///     let manager = ModelManager::new();
+    ///     let manager = ModelManager::new().await;
     ///     assert!(manager.download_model("yi-coder", "config/app.yml").await.is_ok());
     /// }
     /// ```
@@ -201,7 +215,7 @@ impl ModelManager {
     ///
     /// #[tokio::test]
     /// async fn test_get_model_status() {
-    ///     let manager = ModelManager::new();
+    ///     let manager = ModelManager::new().await;
     ///     manager.download_model("yi-coder").await.unwrap();
     ///     assert!(manager.get_model_status("yi-coder").await.is_some());
     /// }
