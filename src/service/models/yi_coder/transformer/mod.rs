@@ -13,4 +13,3 @@ pub use self::encoder::YiCoderEncoder;
 pub use self::error::TransformerError;
 pub use self::feed_forward::PositionWiseFeedForward;
 pub use self::transformer_layer::{TransformerLayer, YiCoderTransformer};
-

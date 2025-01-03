@@ -1,4 +1,4 @@
-use candle_core::{Module, Result, Tensor};
+use candle_core::{DType, Device, Module, Result, Tensor, WithDType};
 use candle_nn::{LayerNorm, VarBuilder};
 
 use super::{attention::MultiHeadAttention, feed_forward::PositionWiseFeedForward};
@@ -21,6 +21,7 @@ impl YiCoderTransformer {
                 hidden_size,
                 num_attention_heads,
                 intermediate_size,
+                1e-5, // TODO: 从config中获取
                 vb.pp(&format!("model.layers.{}", i)),
             )?;
             layers.push(layer);
@@ -38,10 +39,9 @@ impl YiCoderTransformer {
 
     pub fn process(&self, input: &str, max_tokens: usize) -> Result<String> {
         // Convert input to tensor with proper shape [1, seq_len, hidden_size]
-        let device = candle_core::Device::Cpu;
+        let device = Device::cuda_if_available(0)?;
         let bytes = input.as_bytes();
         let seq_len = bytes.len();
-        log::debug!("需要根据需要处理计算结果");
         // Create embedding matrix (simple byte to float mapping)
         let mut embeddings = Vec::with_capacity(seq_len * 2048);
         for &byte in bytes {
@@ -50,8 +50,7 @@ impl YiCoderTransformer {
             embeddings.extend(embedding);
         }
 
-        let input_tensor = Tensor::from_slice(&embeddings, (1, seq_len, 2048), &device)?
-            .to_dtype(candle_core::DType::F32)?;
+        let input_tensor = Tensor::from_slice(&embeddings, (1, seq_len, 2048), &device)?;
 
         // Process through transformer layers
         let mut output = self.forward(&input_tensor)?;
@@ -61,18 +60,14 @@ impl YiCoderTransformer {
             // Get next token from last position in sequence
             let last_token = output.narrow(1, output.dim(1)? - 1, 1)?;
             let logits = last_token.squeeze(1)?; // Remove sequence dimension
-            let next_token = logits
-                .argmax(1)?
-                .squeeze(0)?
-                .to_dtype(candle_core::DType::U8)?
-                .to_scalar::<u8>()?;
+            let next_token =
+                logits.argmax(1)?.squeeze(0)?.to_dtype(DType::U8)?.to_scalar::<u8>()?;
             generated.push(next_token as char);
 
             // Update input for next iteration
             let mut embedding = vec![0.0; 2048];
             embedding[next_token as usize] = 1.0;
-            let new_token = Tensor::from_slice(&embedding, (1, 1, 2048), output.device())?
-                .to_dtype(candle_core::DType::F32)?;
+            let new_token = Tensor::from_slice(&embedding, (1, 1, 2048), output.device())?;
             output = Tensor::cat(&[output, new_token], 1)?;
         }
 
@@ -92,6 +87,7 @@ impl TransformerLayer {
         hidden_size: usize,
         num_attention_heads: usize,
         intermediate_size: usize,
+        layer_norm_eps: f32,
         vb: VarBuilder,
     ) -> Result<Self> {
         let attention =
@@ -100,29 +96,35 @@ impl TransformerLayer {
             PositionWiseFeedForward::new(hidden_size, intermediate_size, vb.pp("mlp"))?;
 
         let weight1 = vb.get((hidden_size,), "input_layernorm.weight")?;
-        let norm1 = LayerNorm::new_no_bias(weight1, 1e-5);
+        let norm1 = LayerNorm::new_no_bias(weight1, layer_norm_eps.to_f64());
 
         let weight2 = vb.get((hidden_size,), "post_attention_layernorm.weight")?;
-        let norm2 = LayerNorm::new_no_bias(weight2, 1e-5);
+        let norm2 = LayerNorm::new_no_bias(weight2, layer_norm_eps.to_f64());
 
         Ok(Self { attention, feed_forward, norm1, norm2 })
     }
 
     pub fn forward(&self, input: &Tensor) -> Result<Tensor> {
+        // Convert input to F32
+        let input = input.to_dtype(candle_core::DType::F32)?;
+
         // Self-attention
-        let attention_output = self.attention.forward(input, input, input)?;
+        let attention_output =
+            self.attention.forward(&input, &input, &input)?.to_dtype(candle_core::DType::F32)?;
 
         // Add & Norm
-        let attention_output = input.add(&attention_output)?;
-        let attention_output = Module::forward(&self.norm1, &attention_output)?;
+        let attention_output = input.add(&attention_output)?.to_dtype(candle_core::DType::F32)?;
+        let attention_output =
+            Module::forward(&self.norm1, &attention_output)?.to_dtype(candle_core::DType::F32)?;
 
         // Feed forward
-        let feed_forward_output = self.feed_forward.forward(&attention_output)?;
+        let feed_forward_output =
+            self.feed_forward.forward(&attention_output)?.to_dtype(candle_core::DType::F32)?;
 
         // Add & Norm
-        let output = attention_output.add(&feed_forward_output)?;
-        let output = Module::forward(&self.norm2, &output)?;
-
+        let output =
+            attention_output.add(&feed_forward_output)?.to_dtype(candle_core::DType::F32)?;
+        let output = Module::forward(&self.norm2, &output)?.to_dtype(candle_core::DType::F32)?;
         Ok(output)
     }
 }

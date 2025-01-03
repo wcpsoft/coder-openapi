@@ -1,11 +1,11 @@
 use candle_core::{Result, Tensor};
 use candle_nn::{linear_no_bias, Linear, Module, VarBuilder};
 
-fn gelu(x: &Tensor) -> Result<Tensor> {
+pub fn gelu(x: &Tensor) -> Result<Tensor> {
     // Precompute constants for GELU approximation
-    const SQRT_2_OVER_PI: f64 = 0.7978845608028654; // sqrt(2.0 / PI)
-    const COEFF: f64 = 0.044715;
-    const HALF: f64 = 0.5;
+    const SQRT_2_OVER_PI: f32 = 0.7978845608028654; // sqrt(2.0 / PI)
+    const COEFF: f32 = 0.044715;
+    const HALF: f32 = 0.5;
 
     // Compute GELU using tensor operations with broadcasting
     let device = x.device();
@@ -39,15 +39,23 @@ pub struct PositionWiseFeedForward {
 
 impl PositionWiseFeedForward {
     pub fn new(hidden_size: usize, intermediate_size: usize, vb: VarBuilder) -> Result<Self> {
-        let fc1 = linear_no_bias(hidden_size, intermediate_size, vb.pp("up_proj"))?;
-        let fc2 = linear_no_bias(intermediate_size, hidden_size, vb.pp("down_proj"))?;
+        let fc1 = {
+            let linear = linear_no_bias(hidden_size, intermediate_size, vb.pp("up_proj"))?;
+            Linear::new(linear.weight().to_dtype(candle_core::DType::F32)?, None)
+        };
+        let fc2 = {
+            let linear = linear_no_bias(intermediate_size, hidden_size, vb.pp("down_proj"))?;
+            Linear::new(linear.weight().to_dtype(candle_core::DType::F32)?, None)
+        };
 
         Ok(Self { fc1, fc2 })
     }
 
     pub fn forward(&self, input: &Tensor) -> Result<Tensor> {
-        let hidden = self.fc1.forward(input)?;
+        let input = input.to_dtype(candle_core::DType::F32)?;
+        let hidden = self.fc1.forward(&input)?;
         let hidden = gelu(&hidden)?;
-        self.fc2.forward(&hidden)
+        let output = self.fc2.forward(&hidden)?;
+        output.to_dtype(candle_core::DType::F32)
     }
 }

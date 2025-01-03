@@ -1,4 +1,5 @@
 use crate::service::models::deepseek_coder::config::ModelConfig;
+use candle_core::WithDType;
 use candle_core::{Device, Module, Result, Tensor};
 use candle_nn::{LayerNorm, VarBuilder};
 
@@ -35,6 +36,7 @@ impl DeepSeekCoderDecoder {
                 config.hidden_size,
                 config.num_attention_heads,
                 config.intermediate_size,
+                config.layer_norm_eps.to_f64(),
                 vb.pp(format!("layer_{}", i)),
             )?;
             layers.push(layer);
@@ -43,7 +45,7 @@ impl DeepSeekCoderDecoder {
         let norm = LayerNorm::new(
             vb.get((config.hidden_size,), "model.norm.weight")?,
             vb.get((config.hidden_size,), "model.norm.bias")?,
-            config.layer_norm_eps,
+            config.layer_norm_eps.to_f64(),
         );
 
         Ok(Self { layers, norm, _device: device })
@@ -67,7 +69,8 @@ impl DeepSeekCoderDecoder {
             )?;
         }
 
-        self.norm.forward(&hidden_states)
+        let output = self.norm.forward(&hidden_states)?;
+        output.to_dtype(candle_core::DType::F32)
     }
 }
 
@@ -76,6 +79,7 @@ impl DecoderLayer {
         hidden_size: usize,
         num_heads: usize,
         intermediate_size: usize,
+        layer_norm_eps: f64,
         vb: VarBuilder,
     ) -> Result<Self> {
         let self_attention =
@@ -88,19 +92,19 @@ impl DecoderLayer {
         let norm1 = LayerNorm::new(
             vb.get((hidden_size,), "input_layernorm.weight")?,
             vb.get((hidden_size,), "input_layernorm.bias")?,
-            1e-5,
+            layer_norm_eps,
         );
 
         let norm2 = LayerNorm::new(
             vb.get((hidden_size,), "post_attention_layernorm.weight")?,
             vb.get((hidden_size,), "post_attention_layernorm.bias")?,
-            1e-5,
+            layer_norm_eps,
         );
 
         let norm3 = LayerNorm::new(
             vb.get((hidden_size,), "post_cross_attention_layernorm.weight")?,
             vb.get((hidden_size,), "post_cross_attention_layernorm.bias")?,
-            1e-5,
+            layer_norm_eps,
         );
 
         Ok(Self { self_attention, cross_attention, feed_forward, norm1, norm2, norm3 })
@@ -130,6 +134,7 @@ impl DecoderLayer {
 
         // Feed forward
         let feed_forward_output = self.feed_forward.forward(&cross_attention_output)?;
-        self.norm3.forward(&(cross_attention_output + &feed_forward_output)?)
+        let output = self.norm3.forward(&(cross_attention_output + &feed_forward_output)?)?;
+        output.to_dtype(candle_core::DType::F32)
     }
 }

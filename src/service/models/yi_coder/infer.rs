@@ -10,8 +10,11 @@ pub struct YiCoderInference {
 }
 
 impl YiCoderInference {
-    pub fn new(_config: &crate::service::models::deepseek_coder::config::ModelConfig) -> Self {
+    pub fn new(model_path: &str, tokenizer_path: &str, max_seq_len: usize) -> Self {
         log::info!("Initializing Yi Coder with CPU device");
+        log::debug!("Model path: {}", model_path);
+        log::debug!("Tokenizer path: {}", tokenizer_path);
+        log::debug!("Max sequence length: {}", max_seq_len);
         Self { _device: Device::Cpu, sender: Arc::new(Mutex::new(None)) }
     }
 
@@ -42,6 +45,11 @@ impl YiCoderInference {
         log::debug!("Validating inference parameters");
         let temperature = temperature.unwrap_or(0.7);
         log::debug!("Using temperature: {:.2}", temperature);
+        if temperature.is_nan() || temperature.is_infinite() {
+            return Err(AppError::InvalidParameter(
+                t!("errors.validation.temperature_invalid").to_string(),
+            ));
+        }
         if temperature <= 0.0 || temperature > 2.0 {
             return Err(AppError::InvalidParameter(
                 t!("errors.validation.temperature_range").to_string(),

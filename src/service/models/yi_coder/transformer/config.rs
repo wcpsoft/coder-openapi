@@ -8,7 +8,7 @@ pub struct ModelConfig {
     pub intermediate_size: usize,
     pub num_layers: usize,
     pub vocab_size: usize,
-    pub layer_norm_eps: f32,
+    pub layer_norm_eps: f64,
 }
 
 impl ModelConfig {

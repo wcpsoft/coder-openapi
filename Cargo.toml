@@ -38,6 +38,7 @@ rand = "0.8"
 
 
 [dev-dependencies]
+approx = "0.5"
 criterion = { version = "0.5", features = ["html_reports"] }
 actix-test = "0.1"
 mockall = "0.13"

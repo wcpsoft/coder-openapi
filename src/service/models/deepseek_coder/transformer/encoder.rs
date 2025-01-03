@@ -1,5 +1,5 @@
 use crate::service::models::deepseek_coder::ModelConfig;
-use candle_core::{Device, Module, Result, Tensor};
+use candle_core::{Device, Module, Result, Tensor, WithDType};
 use candle_nn::{LayerNorm, VarBuilder};
 
 use super::attention::MultiHeadAttention;
@@ -41,7 +41,7 @@ impl DeepSeekCoderEncoder {
         let norm = LayerNorm::new(
             vb.get((config.hidden_size,), "model.norm.weight")?,
             vb.get((config.hidden_size,), "model.norm.bias")?,
-            config.layer_norm_eps,
+            config.layer_norm_eps.to_f64(),
         );
 
         Ok(Self { layers, norm, _device: device })
